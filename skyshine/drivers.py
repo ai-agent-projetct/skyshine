@@ -1064,6 +1064,121 @@ class MavlinkNativeDriver(_MavlinkBase):
         )
 
 
+# Skybrush's ArduCopter build (skybrush-io/ardupilot, CMCopter branches) loads
+# its show from this file; see AC_DroneShowManager/DroneShow_Constants.h.
+SKYBRUSH_SHOW_FILE = "/COLLMOT/show.skyb"
+GPS_EPOCH_UNIX = 315964800          # 1980-01-06 00:00:00 UTC
+GPS_LEAP_SECONDS = 18               # GPS - UTC since 2017-01-01; update if IERS adds one
+
+
+def gps_time_of_week(unix_time: float) -> tuple[int, int]:
+    """(seconds, milliseconds) into the GPS week, as SHOW_START_TIME/MSEC want."""
+    gps = unix_time - GPS_EPOCH_UNIX + GPS_LEAP_SECONDS
+    whole = math.floor(gps)
+    return int(whole % 604800), int(round((gps - whole) * 1000)) % 1000
+
+
+class MavlinkSkybrushDriver(MavlinkNativeDriver):
+    """Onboard shows on Skybrush's ArduCopter firmware.
+
+    Same idea as MavlinkNativeDriver, in the firmware's own words:
+      upload   each drone's .skyb file to /COLLMOT/show.skyb over MAVLink
+               FTP, then MAV_CMD_USER_1 param1=0 ("reload show"), which
+               must be accepted - the firmware rejects a file it cannot
+               parse or a trajectory it finds implausible.
+      start    origin and orientation by COMMAND_INT MAV_CMD_USER_2 (exact
+               lat/lng), then SHOW_START_TIME / SHOW_START_MSEC as GPS time
+               of week and SHOW_START_AUTH = 1. With SHOW_MODE_BOOT = 3 the
+               firmware enters show mode on its own and arms itself before
+               takeoff.
+    Lights: set SHOW_LED0_TYPE = 14 and SERVO9/10/11_FUNCTION = 107/108/109
+    with MIN 1000 / MAX 2000 for the Sky Shine show board.
+    """
+
+    name = "mavlink-skybrush"
+
+    def _command(self, i: int, command: int, params, *, use_int=False, x=0, y=0, z=0.0,
+                 timeout: float = 3.0) -> None:
+        from pymavlink import mavutil
+
+        link, q = self.links[i], self._ack_replies[i]
+        while not q.empty():              # drop acks left from earlier commands
+            q.get_nowait()
+        p = list(params) + [0.0] * (7 - len(params))
+        if use_int:
+            link.mav.command_int_send(link.target_system, link.target_component,
+                                      mavutil.mavlink.MAV_FRAME_GLOBAL, command, 0, 0,
+                                      p[0], p[1], p[2], p[3], x, y, z)
+        else:
+            link.mav.command_long_send(link.target_system, link.target_component,
+                                       command, 0, *p)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                ack = q.get(timeout=max(0.0, deadline - time.monotonic()))
+            except Exception:
+                break
+            if ack.command == command:
+                if ack.result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                    raise IOError(f"drone {i} rejected command {command} (result {ack.result})")
+                return
+        raise IOError(f"drone {i} did not acknowledge command {command} within {timeout:.0f} s")
+
+    def upload(self, mission: MissionPackage) -> None:
+        from pymavlink import mavutil
+
+        from . import skybrush
+
+        failures: list[tuple[int, str]] = []
+        for plan in mission.plans:
+            i = plan.drone_index
+            if i >= len(self.links):
+                continue
+            try:
+                self.ftp_write(i, skybrush.skyb_bytes(plan, mission.show_name), SKYBRUSH_SHOW_FILE)
+                self._command(i, mavutil.mavlink.MAV_CMD_USER_1, [0.0])
+            except (IOError, OSError, ValueError) as exc:
+                failures.append((i, str(exc)))
+                continue
+            with self._lock:
+                self.states[i].mission_uploaded = True
+                self.states[i].mission_checksum = mission.to_dict()["checksum"]
+        if failures:
+            names = ", ".join(f"{i} ({why})" for i, why in failures[:5])
+            raise IOError(
+                f"{len(failures)} of {len(mission.plans)} show uploads failed: {names}. "
+                "The fleet is now in a mixed state - re-upload before arming."
+            )
+
+    def _set_param(self, i: int, name: str, value: float) -> None:
+        from pymavlink import mavutil
+
+        # ponytail: not read back; the SHOW_* values are small integers that
+        # a float carries exactly. Add a PARAM_VALUE check if a link drops them.
+        link = self.links[i]
+        link.mav.param_set_send(link.target_system, link.target_component,
+                                name.encode("ascii"), float(value),
+                                mavutil.mavlink.MAV_PARAM_TYPE_INT32)
+
+    def start(self, at_unix_time: float) -> None:
+        from pymavlink import mavutil
+
+        o = self.origin
+        if o is None:
+            raise ValueError("set the show origin before starting a Skybrush show")
+        tow, msec = gps_time_of_week(at_unix_time)
+        orientation = (90.0 + o.orientation_deg) % 360.0      # same frame as show_json
+        self._start_time = at_unix_time
+        for i in self._indices(None):
+            self._command(i, mavutil.mavlink.MAV_CMD_USER_2, [0.0, 0.0, 0.0, orientation],
+                          use_int=True, x=int(round(o.latitude * 1e7)),
+                          y=int(round(o.longitude * 1e7)),
+                          z=float(round((o.amsl or 0.0) * 1000.0)))
+            self._set_param(i, "SHOW_START_TIME", tow)
+            self._set_param(i, "SHOW_START_MSEC", msec)
+            self._set_param(i, "SHOW_START_AUTH", 1)
+
+
 class MavlinkGuidedDriver(_MavlinkBase):
     """Stream position setpoints to stock ArduPilot in GUIDED mode.
 
@@ -1144,5 +1259,6 @@ class MavlinkGuidedDriver(_MavlinkBase):
 DRIVERS = {
     "simulator": SimDriver,
     "mavlink-native": MavlinkNativeDriver,
+    "mavlink-skybrush": MavlinkSkybrushDriver,
     "mavlink-guided": MavlinkGuidedDriver,
 }

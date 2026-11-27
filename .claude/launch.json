@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "skyshine",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "skyshine", "serve", "--port", "8765"],
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-3.12", "-m", "skyshine", "serve", "--port", "8765"],
       "port": 8765
     }
   ]

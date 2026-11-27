@@ -18,3 +18,11 @@ shows/
 tools/*.log
 .claude/settings.local.json
 admin-login.txt
+
+# Firmware build output and KiCad scratch files
+firmware/*/build/
+hardware/*/fab/
+hardware/*/*-backups/
+hardware/*/fp-info-cache
+hardware/*/*.kicad_prl
+__pycache__/

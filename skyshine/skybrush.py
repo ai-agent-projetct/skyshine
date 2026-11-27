@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import zipfile
 from pathlib import Path
 
@@ -149,6 +150,155 @@ def show_json(show: Show, *, sample_hz: float = 10.0) -> dict:
         doc["settings"]["cues"] = {"version": 1, "items": [
             {"name": label, "time": round(float(t), 3)} for t, label in show.music.cues]}
     return doc
+
+
+# --------------------------------------------------------------------------
+# .skyb: the per-drone binary file Skybrush's ArduCopter firmware flies
+# (it loads /COLLMOT/show.skyb). Layout, read from the open-source parser
+# (libskybrush, src/formats/binary.c and src/trajectory/): no Skybrush code
+# is used here.
+#
+#   "skyb", version (1)
+#   blocks: type (u8), length (u16 LE), body
+#     1 trajectory: scale (u8, mm per unit), start x y z (i16 LE, units),
+#       2 legacy yaw bytes, then segments: header (u8, 2 bits per axis
+#       x y z yaw: 0 constant, 1 linear, 2 cubic, 3 7th order Bezier),
+#       duration (u16 LE, ms), control points 1..n-1 per axis (i16 LE).
+#     2 light program: the same ledctrl bytecode as .skyc, ending in 0x00.
+#   Coordinates are millimetres in the show frame: x at the bearing in
+#   SHOW_ORIENTATION, y to its left, z up - the frame show_json uses.
+# --------------------------------------------------------------------------
+
+SKYB_TRAJECTORY, SKYB_LIGHTS, SKYB_COMMENT = 1, 2, 3
+OP_END = 0x00
+_SEG_MAX_MS = 65535
+
+
+def read_skyb(data: bytes) -> dict[int, bytes]:
+    """Blocks of a .skyb file by type (the first of each type)."""
+    if data[:4] != b"skyb" or data[4] not in (1, 2):
+        raise ValueError("not a Skybrush binary show file")
+    i = 5
+    if data[4] == 2:
+        features = data[5]
+        i = 6 + (4 if features & 1 else 0)
+    blocks: dict[int, bytes] = {}
+    while i < len(data):
+        kind, length = data[i], data[i + 1] | (data[i + 2] << 8)
+        body = data[i + 3:i + 3 + length]
+        if len(body) != length:
+            raise ValueError("truncated block")
+        blocks.setdefault(kind, body)
+        i += 3 + length
+    return blocks
+
+
+def _i16(b: bytes, i: int) -> int:
+    return int.from_bytes(b[i:i + 2], "little", signed=True)
+
+
+def trajectory_segments(block: bytes) -> list[tuple[int, int, list[list[float]]]]:
+    """[(start_ms, duration_ms, [x_ctrl, y_ctrl, z_ctrl])] in millimetres."""
+    scale = block[0] & 0x7F
+    if not scale:
+        return []
+    pos = [_i16(block, 1 + 2 * k) * scale for k in range(3)]
+    i, t, out = 9, 0, []
+    while i < len(block):
+        head, dur = block[i], block[i + 1] | (block[i + 2] << 8)
+        i += 3
+        axes = []
+        for a in range(4):
+            n = 1 << ((head >> (2 * a)) & 3)
+            ctrl = [pos[a]] if a < 3 else [0]
+            for _ in range(n - 1):
+                ctrl.append(_i16(block, i) * scale)
+                i += 2
+            if a < 3:
+                axes.append(ctrl)
+                pos[a] = ctrl[-1]
+        out.append((t, dur, axes))
+        t += dur
+    return out
+
+
+def _bezier(ctrl: list[float], s: float) -> float:
+    pts = list(ctrl)
+    while len(pts) > 1:
+        pts = [a + (b - a) * s for a, b in zip(pts, pts[1:])]
+    return pts[0]
+
+
+def skyb_position(segments, t_ms: float) -> tuple[float, float, float]:
+    """Where a parsed trajectory says the drone is at t_ms (millimetres)."""
+    for start, dur, axes in segments:
+        if t_ms <= start + dur or (start, dur, axes) == segments[-1]:
+            s = 0.0 if dur == 0 else min(max((t_ms - start) / dur, 0.0), 1.0)
+            return tuple(_bezier(c, s) for c in axes)
+    return (0.0, 0.0, 0.0)
+
+
+def _trajectory_block(rows: np.ndarray) -> bytes:
+    """Linear segments through (t_s, x_m, y_m, z_m) rows."""
+    mm = rows[:, 1:4] * 1000.0
+    scale = max(1, int(math.ceil(float(np.max(np.abs(mm))) / 32000.0)))
+    if scale > 127:
+        raise ValueError("show is too large for one Skybrush trajectory (over 4 km)")
+    q = np.round(mm / scale).astype(int)
+    out = bytearray([scale])
+    for v in q[0]:
+        out += int(v).to_bytes(2, "little", signed=True)
+    out += b"\x00\x00"
+    ms = np.round(rows[:, 0] * 1000.0).astype(np.int64)
+    ms -= ms[0]
+    for k in range(1, len(rows)):
+        start, end = int(ms[k - 1]), int(ms[k])
+        a, b = q[k - 1], q[k]
+        steps = max(1, -(-(end - start) // _SEG_MAX_MS))      # split anything over 65.5 s
+        for s in range(1, steps + 1):
+            t0 = start + (end - start) * (s - 1) // steps
+            t1 = start + (end - start) * s // steps
+            p = np.round(a + (b - a) * (s / steps)).astype(int)
+            prev = np.round(a + (b - a) * ((s - 1) / steps)).astype(int)
+            head = 0
+            coords = bytearray()
+            for axis in range(3):
+                if p[axis] != prev[axis]:
+                    head |= 1 << (2 * axis)
+                    coords += int(p[axis]).to_bytes(2, "little", signed=True)
+            out += bytes([head]) + (t1 - t0).to_bytes(2, "little") + coords
+    return bytes(out)
+
+
+def _block(kind: int, body: bytes) -> bytes:
+    if len(body) > 0xFFFF:
+        raise ValueError(f"block {kind} is {len(body)} bytes; Skybrush blocks hold 65535")
+    return bytes([kind]) + len(body).to_bytes(2, "little") + body
+
+
+def plan_rows(plan, sample_hz: float = 10.0, tol: float = 0.01) -> np.ndarray:
+    """A DronePlan's eased motion as (t, x, y, z) rows, thinned to `tol` metres."""
+    from .trajectory import evaluate_plan
+
+    pts = np.asarray(plan.points, dtype=np.float64)
+    times = [pts[0, 0]]
+    for k in range(1, len(pts)):     # every plan point, and samples in between
+        t0, t1 = pts[k - 1, 0], pts[k, 0]
+        n = max(1, int(math.ceil((t1 - t0) * sample_hz)))
+        times.extend(t0 + (t1 - t0) * j / n for j in range(1, n + 1))
+    rows = np.array([[t, *evaluate_plan(plan, t)] for t in times])
+    return simplify(rows, tol, metric="l2")
+
+
+def skyb_bytes(plan, title: str = "") -> bytes:
+    """One drone's show as a .skyb file for Skybrush's ArduCopter firmware."""
+    body = _block(SKYB_TRAJECTORY, _trajectory_block(plan_rows(plan)))
+    lights = np.asarray(plan.lights, dtype=np.float64)
+    if len(lights):
+        body += _block(SKYB_LIGHTS, light_program(lights) + bytes([OP_END]))
+    if title:
+        body += _block(SKYB_COMMENT, title.encode("utf-8")[:200])
+    return b"skyb\x01" + body
 
 
 def write_skyc(show: Show, path: str | Path) -> Path:
