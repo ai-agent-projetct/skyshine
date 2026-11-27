@@ -529,3 +529,22 @@ def test_login_does_not_block_other_requests(tmp_path):
     elapsed = time.perf_counter() - started
     t.join()
     assert elapsed < 0.15, f"session lookups stalled {elapsed:.2f}s behind a login"
+
+
+def test_first_admin_can_be_created_from_the_page_then_signs_in(tmp_path, monkeypatch):
+    """The page's Create login button: the first account needs no sign-in,
+    every later one does."""
+    from fastapi.testclient import TestClient
+
+    from skyshine import server
+
+    c = TestClient(server.app)
+    assert c.get("/api/auth/status").json()["configured"] is False
+    pw = "correct horse battery"
+    r = c.post("/api/users", json={"name": "admin", "password": pw, "role": "admin"})
+    assert r.status_code == 200, r.text
+    assert c.get("/api/auth/status").json()["configured"] is True
+    other = TestClient(server.app)
+    assert other.post("/api/users", json={"name": "x", "password": pw,
+                                          "role": "admin"}).status_code == 401
+    assert c.post("/api/auth/login", json={"username": "admin", "password": pw}).status_code == 200

@@ -17,3 +17,4 @@ fleet.json
 shows/
 tools/*.log
 .claude/settings.local.json
+admin-login.txt

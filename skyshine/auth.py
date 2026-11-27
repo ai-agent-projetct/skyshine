@@ -168,8 +168,11 @@ class AuthStore:
 
     def add_user(self, name: str, password: str, role: str) -> User:
         name = (name or "").strip()
-        if not name or not name.replace("_", "").replace("-", "").replace(".", "").isalnum():
-            raise AuthError("username must be letters, digits, '.', '-' or '_'")
+        # '@' so an email address can be the username.
+        plain = name.replace("_", "").replace("-", "").replace(".", "")
+        if not name or name.count("@") > 1 or not plain.replace("@", "").isalnum():
+            raise AuthError("username must be letters, digits, '.', '-', '_', "
+                            "or an email address")
         if role not in ROLES:
             raise AuthError(f"role must be one of {', '.join(ROLES)}")
         with self._lock:

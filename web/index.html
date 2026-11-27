@@ -344,6 +344,10 @@ kbd{ font-family:var(--mono); font-size:10px; background:var(--panel3);
       <button class="icon ghost" id="btnHelp" title="Keyboard shortcuts">?</button>
       <span class="mini mono" id="who"
             style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px"></span>
+      <button class="sm primary" id="btnSetup" style="display:none;white-space:nowrap"
+              title="Create the admin login; after this everyone signs in">Create login</button>
+      <button class="sm ghost" id="btnPassword" style="display:none;white-space:nowrap"
+              title="Change your password">Change password</button>
       <button class="sm ghost" id="btnLogout"
               style="display:none;white-space:nowrap">Sign out</button>
     </div>
@@ -1048,6 +1052,10 @@ kbd{ font-family:var(--mono); font-size:10px; background:var(--panel3);
     <label for="loginPass">Password</label>
     <input id="loginPass" name="password" type="password"
            autocomplete="current-password" required>
+    <div id="loginAgainRow" style="display:none">
+      <label for="loginAgain">Password again</label>
+      <input id="loginAgain" type="password" autocomplete="new-password">
+    </div>
     <div id="loginErr" class="mini" role="alert"
          style="color:var(--bad);min-height:18px;margin-top:6px"></div>
     <button class="primary" id="loginBtn" type="submit" style="margin-top:4px">Sign in</button>
@@ -1136,13 +1144,14 @@ function toast(text, kind='ok', extra=''){
 /* Replaces confirm()/prompt(): those block the event loop, cannot be
    styled, and in some embedded webviews never appear at all - which is
    how an "are you sure" silently became "no". */
-function ask({title, body='', input=null, confirmLabel='Confirm', danger=false}){
+function ask({title, body='', input=null, confirmLabel='Confirm', danger=false, secret=false}){
   return new Promise(resolve=>{
     $('modalTitle').textContent=title;
     $('modalBody').textContent=body;
     const inp=$('modalInput');
     inp.style.display = input===null ? 'none' : 'block';
     inp.value=''; inp.placeholder = input || '';
+    inp.type = secret ? 'password' : 'text';
     const foot=$('modalFoot'); foot.innerHTML='';
     const cancel=document.createElement('button'); cancel.textContent='Cancel';
     const ok=document.createElement('button'); ok.textContent=confirmLabel;
@@ -1150,7 +1159,8 @@ function ask({title, body='', input=null, confirmLabel='Confirm', danger=false})
     foot.append(cancel, ok);
     const close=v=>{ $('modal').close(); resolve(v); };
     cancel.onclick=()=>close(null);
-    ok.onclick=()=>close(input===null ? true : (inp.value.trim() || null));
+    ok.onclick=()=>close(input===null ? true
+      : ((secret ? inp.value : inp.value.trim()) || null));
     $('modal').showModal();
     (input===null ? ok : inp).focus();
   });
@@ -3420,9 +3430,13 @@ function setIdentity(user, role, configured){
   if(!configured){
     badge.textContent = 'local, no accounts';
     badge.title = 'No user accounts exist, so only this machine can connect. '
-      + 'Create an admin with: python -m skyshine user add <name> --role admin';
+      + 'Click Create login to add the admin.';
     $('btnLogout').style.display = 'none';
+    $('btnSetup').style.display = '';
   } else {
+    $('btnSetup').style.display = 'none';
+    $('btnPassword').style.display = '';
+    state.user = user;
     badge.textContent = `${user} · ${role}`;
     badge.title = `signed in as ${user} (${role})`;
     $('btnLogout').style.display = '';
@@ -3441,11 +3455,35 @@ async function boot(){
   loadCatalogues().then(refreshLibrary).catch(e=>toast(e.message,'bad'));
 }
 
+let setupMode = false;
+function setLoginMode(setup){
+  setupMode = setup;
+  $('loginAgainRow').style.display = setup ? '' : 'none';
+  $('loginAgain').required = setup;
+  $('loginPass').autocomplete = setup ? 'new-password' : 'current-password';
+  $('loginTitle').nextElementSibling.textContent = setup
+    ? 'Create your admin login (password: 10 characters or more)'
+    : 'Sign in to the ground station';
+  $('loginBtn').textContent = setup ? 'Create login' : 'Sign in';
+}
+$('btnSetup').onclick = ()=>{ setLoginMode(true); showLogin(''); };
+$('loginForm').addEventListener('keydown', e=>{
+  if(e.key==='Escape' && setupMode){ $('login').style.display='none'; setLoginMode(false); }
+});
+
 $('loginForm').addEventListener('submit', async ev=>{
   ev.preventDefault();
   $('loginErr').textContent = '';
   $('loginBtn').disabled = true;
   try{
+    if(setupMode){
+      if($('loginPass').value !== $('loginAgain').value)
+        throw new Error('the two passwords are different');
+      await api('/api/users', {method:'POST', body:{
+        name:$('loginUser').value.trim(), password:$('loginPass').value, role:'admin' }});
+      $('loginAgain').value = '';
+      setLoginMode(false);
+    }
     const r = await api('/api/auth/login', {method:'POST', body:{
       username:$('loginUser').value.trim(), password:$('loginPass').value }});
     $('loginPass').value = '';
@@ -3459,6 +3497,20 @@ $('loginForm').addEventListener('submit', async ev=>{
     $('loginPass').select();
   }finally{ $('loginBtn').disabled = false; }
 });
+
+$('btnPassword').onclick = async ()=>{
+  const pw = await ask({title:'Change password', secret:true, confirmLabel:'Next',
+    input:'new password, 10 characters or more'});
+  if(!pw) return;
+  const again = await ask({title:'Change password', secret:true, confirmLabel:'Change it',
+    input:'the same password again'});
+  if(again === null) return;
+  if(again !== pw) return toast('the two passwords are different','bad');
+  try{
+    await api(`/api/users/${encodeURIComponent(state.user)}`, {method:'PATCH', body:{password:pw}});
+    showLogin('Password changed. Sign in with the new one.');
+  }catch(e){ toast(e.message,'bad'); }
+};
 
 $('btnLogout').onclick = async ()=>{
   try{ await api('/api/auth/logout', {method:'POST'}); }catch{}
