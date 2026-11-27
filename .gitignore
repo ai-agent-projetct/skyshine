@@ -1,0 +1,19 @@
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+logs/
+assets/
+shows/*.mission.json
+shows/*.vviz
+shows/*-csv/
+mission.key
+link.key
+claude.key
+
+# Local data and accounts: never published
+users.json
+fleet.json
+shows/
+tools/*.log
+.claude/settings.local.json

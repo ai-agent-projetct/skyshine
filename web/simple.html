@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sky Shine · Simple</title>
+<style>
+/* Simple mode: one column, three big steps. Everything a child needs is a big button. */
+:root {
+  --bg: #f4f6fa; --card: #ffffff; --card2: #eef1f6; --line: #d6dce8;
+  --ink: #142033; --dim: #56627a; --accent: #0a7ea4; --accent-ink: #ffffff;
+  --good: #1d8a52; --good-bg: #e3f6ea; --bad: #b3261e; --bad-bg: #fdeaec;
+  --sky: #05070d;
+  --f: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #06070a; --card: #0f131c; --card2: #171d2a; --line: #262f42;
+  --ink: #e9edf5; --dim: #9aa5bd; --accent: #5ad1ff; --accent-ink: #04202c;
+  --good: #5ee0a0; --good-bg: #0f2a1d; --bad: #ff8a80; --bad-bg: #2e1214; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #06070a; --card: #0f131c; --card2: #171d2a; --line: #262f42;
+  --ink: #e9edf5; --dim: #9aa5bd; --accent: #5ad1ff; --accent-ink: #04202c;
+  --good: #5ee0a0; --good-bg: #0f2a1d; --bad: #ff8a80; --bad-bg: #2e1214; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 var(--f); }
+.wrap { max-width: 920px; margin: 0 auto; padding: 20px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-weight: 700; font-size: 1.4rem; }
+.brand b { color: var(--accent); }
+a.full { color: var(--dim); font-size: 0.95rem; }
+h2 { font-size: 1.5rem; margin: 0 0 4px; display: flex; align-items: center; gap: 12px; }
+h2 .n { width: 38px; height: 38px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-size: 1.1rem; flex: none; }
+.step { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; margin-top: 20px; }
+.step[aria-disabled="true"] { opacity: 0.45; pointer-events: none; }
+.help { color: var(--dim); margin: 0 0 16px; }
+button { font: 600 1rem var(--f); color: var(--ink); background: var(--card2); border: 2px solid var(--line); border-radius: 14px; padding: 12px 18px; cursor: pointer; min-height: 48px; }
+button:hover { border-color: var(--dim); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button.big { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-size: 1.2rem; padding: 14px 28px; }
+button:disabled { opacity: 0.5; cursor: default; }
+.tpls { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.tpl { text-align: left; display: grid; gap: 4px; padding: 16px; min-height: 112px; }
+.tpl b { font-size: 1.15rem; }
+.tpl span { color: var(--dim); font-weight: 400; font-size: 0.92rem; }
+.tpl[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent) inset; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 18px; }
+.count { display: flex; align-items: center; gap: 10px; }
+.count button { width: 52px; font-size: 1.5rem; padding: 0; }
+.count output { font-size: 2rem; font-weight: 700; min-width: 3ch; text-align: center; font-variant-numeric: tabular-nums; }
+label.lbl { font-weight: 600; display: block; margin-bottom: 6px; }
+input[type=text] { font: 600 1.15rem var(--f); color: var(--ink); background: var(--card2); border: 2px solid var(--line); border-radius: 12px; padding: 10px 14px; width: min(320px, 100%); }
+.forms { display: grid; gap: 10px; }
+.form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; background: var(--card2); border-radius: 14px; padding: 12px 14px; }
+.form .name { font-weight: 600; min-width: 140px; flex: 1 1 140px; }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.sw { width: 40px; height: 40px; min-height: 0; border-radius: 50%; padding: 0; border: 3px solid var(--card); box-shadow: 0 0 0 1px var(--line); }
+.sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); }
+.form .rm { padding: 8px 14px; min-height: 40px; font-size: 0.9rem; }
+.verdict { border-radius: 14px; padding: 16px 18px; margin-top: 16px; font-size: 1.1rem; }
+.verdict.good { background: var(--good-bg); color: var(--good); }
+.verdict.bad { background: var(--bad-bg); color: var(--bad); }
+.verdict ul { margin: 8px 0 0; padding-left: 20px; font-size: 1rem; }
+.stage { position: relative; margin-top: 16px; border-radius: 16px; overflow: hidden; background: radial-gradient(120% 90% at 50% 100%, #16214a 0%, var(--sky) 65%); }
+#view { display: block; width: 100%; aspect-ratio: 16 / 9; cursor: grab; touch-action: none; }
+.hud { position: absolute; left: 12px; top: 12px; color: #e9edf5; background: rgba(5, 7, 13, 0.7); border-radius: 10px; padding: 6px 12px; font-weight: 600; pointer-events: none; }
+.player { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+#scrub { flex: 1 1 200px; min-width: 0; accent-color: var(--accent); height: 28px; }
+#clock { font-variant-numeric: tabular-nums; color: var(--dim); }
+.toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 12px 20px; border-radius: 12px; font-weight: 600; max-width: calc(100% - 32px); }
+.busy { color: var(--dim); font-style: italic; }
+#pad { display: block; width: 100%; aspect-ratio: 2 / 1; background: var(--card2); border: 2px dashed var(--line); border-radius: 14px; touch-action: none; cursor: crosshair; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Sky <b>Shine</b> · Simple</div>
+    <a class="full" href="/">Open the full editor</a>
+  </header>
+
+  <section class="step" id="s1">
+    <h2><span class="n">1</span>Pick a show</h2>
+    <p class="help">Choose a ready-made show. You can change it in the next step.</p>
+    <div class="tpls" id="tpls"><p class="busy">Loading shows…</p></div>
+    <div class="row">
+      <div>
+        <span class="lbl">How many drones?</span>
+        <div class="count">
+          <button type="button" id="less" aria-label="Fewer drones">−</button>
+          <output id="count" aria-live="polite">50</output>
+          <button type="button" id="more" aria-label="More drones">+</button>
+        </div>
+      </div>
+      <div id="wordsBox" hidden>
+        <label class="lbl" for="words">Words to write in the sky</label>
+        <input type="text" id="words" maxlength="12" autocomplete="off">
+      </div>
+    </div>
+    <div class="row"><button type="button" class="big" id="make" disabled>Make my show</button></div>
+  </section>
+
+  <section class="step" id="s2" aria-disabled="true">
+    <h2><span class="n">2</span>Make it yours</h2>
+    <p class="help">Each line is one picture in the sky. Tap a colour to change it, make it spin, or take a picture out.</p>
+    <div class="forms" id="forms"></div>
+    <div class="row"><button type="button" id="undo">Undo</button></div>
+    <h3 style="margin:22px 0 6px">Draw your own picture</h3>
+    <p class="help">Draw with your finger or mouse. The drones will make your drawing in the sky.</p>
+    <canvas id="pad" width="800" height="400" aria-label="Drawing pad"></canvas>
+    <div class="row">
+      <button type="button" class="big" id="addDrawing">Add my drawing</button>
+      <button type="button" id="padUndo">Undo line</button>
+      <button type="button" id="padClear">Start again</button>
+    </div>
+  </section>
+
+  <section class="step" id="s3" aria-disabled="true">
+    <h2><span class="n">3</span>Check it and watch it</h2>
+    <p class="help">Sky Shine adds take-off and landing, checks that no drones bump into each other, then plays your show.</p>
+    <button type="button" class="big" id="check">Check and play</button>
+    <div id="verdict"></div>
+    <div id="player" hidden>
+      <div class="stage">
+        <canvas id="view" aria-label="3D replay of your show"></canvas>
+        <div class="hud" id="hud"></div>
+      </div>
+      <div class="player">
+        <button type="button" id="play">Pause</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Show time">
+        <span id="clock">0:00</span>
+      </div>
+      <p class="help" style="margin-top:12px">Ready to fly it for real? <a href="/">Open the full editor</a>, pick your show, and use the Operations panel.</p>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const COLOURS = [[255, 40, 60], [255, 140, 20], [255, 215, 50], [60, 220, 90], [40, 150, 255], [170, 80, 255], [255, 255, 255]];
+const PLAIN = {   // what a safety problem means, in plain words
+  separation: 'Two drones get too close to each other.',
+  formation_separation: 'A picture packs drones too close together.',
+  altitude_max: 'A drone flies higher than allowed.',
+  altitude_min: 'A drone flies too low.',
+  geofence: 'A drone leaves the allowed area.',
+  endurance: 'The show is longer than the batteries last.',
+};
+const state = { templates: [], pick: null, count: 50, show: null };
+
+function toast(text) {
+  const t = $('toast'); t.textContent = text; t.hidden = false;
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 4200);
+}
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { 'content-type': 'application/json' }, ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined });
+  let data = null; try { data = await res.json(); } catch {}
+  if (res.status === 401) throw new Error('Please sign in on the full editor first, then come back.');
+  if (!res.ok) throw new Error(typeof data?.detail === 'string' ? data.detail : res.statusText);
+  return data;
+}
+const enc = encodeURIComponent;
+const unlock = (id, on = true) => $(id).setAttribute('aria-disabled', String(!on));
+
+/* ---------- step 1: pick ---------- */
+function setCount(n) { state.count = Math.min(300, Math.max(10, n)); $('count').textContent = state.count; }
+$('less').onclick = () => setCount(state.count - 10);
+$('more').onclick = () => setCount(state.count + 10);
+
+async function loadTemplates() {
+  try {
+    const { templates } = await api('/api/design/templates');
+    state.templates = templates;
+    $('tpls').innerHTML = '';
+    for (const t of templates) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'tpl'; b.setAttribute('aria-pressed', 'false');
+      b.innerHTML = `<b></b><span></span>`;
+      b.querySelector('b').textContent = t.title;
+      b.querySelector('span').textContent = t.summary;
+      b.onclick = () => pick(t, b);
+      $('tpls').appendChild(b);
+    }
+  } catch (e) { $('tpls').textContent = e.message; }
+}
+function pick(t, button) {
+  state.pick = t;
+  for (const b of $('tpls').children) b.setAttribute('aria-pressed', String(b === button));
+  $('wordsBox').hidden = !t.text;
+  if (t.text) $('words').value = t.text;
+  $('make').disabled = false;
+}
+
+async function freeName(base) {
+  const { shows } = await api('/api/design/shows');
+  const taken = new Set(shows.map(s => s.name));
+  for (let i = 1; ; i++) { const n = i === 1 ? base : `${base} ${i}`; if (!taken.has(n)) return n; }
+}
+
+$('make').onclick = async () => {
+  const t = state.pick; if (!t) return;
+  $('make').disabled = true; $('make').textContent = 'Making…';
+  try {
+    const name = await freeName(`my ${t.title.toLowerCase()} show`);
+    const r = await api(`/api/design/templates/${enc(t.id)}`, { method: 'POST',
+      body: { name, drone_count: state.count, text: t.text ? $('words').value.trim() : '' } });
+    state.show = r.show;
+    await loadForms();
+    unlock('s2'); unlock('s3');
+    $('verdict').innerHTML = ''; $('player').hidden = true;
+    toast(r.warnings.length ? `Made "${r.show}". Some pictures may be too tall; step 3 will check.` : `Made "${r.show}".`);
+    $('s2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) { toast(e.message); }
+  finally { $('make').disabled = false; $('make').textContent = 'Make my show'; }
+};
+
+/* ---------- step 2: make it yours ---------- */
+function mainColour(f) {
+  const c = Array.isArray(f.colors[0]) ? f.colors[0] : f.colors;
+  return c.map(Number);
+}
+async function loadForms() {
+  const show = await api(`/api/design/shows/${enc(state.show)}`);
+  const box = $('forms'); box.innerHTML = '';
+  show.formations.forEach((f, i) => {
+    const row = document.createElement('div'); row.className = 'form';
+    const name = document.createElement('div'); name.className = 'name'; name.textContent = f.name;
+    const sws = document.createElement('div'); sws.className = 'swatches';
+    const now = mainColour(f);
+    for (const c of COLOURS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'sw'; b.style.background = `rgb(${c})`;
+      b.setAttribute('aria-label', `Make ${f.name} this colour`);
+      b.setAttribute('aria-pressed', String(c.every((v, k) => Math.abs(v - now[k]) < 2)));
+      b.onclick = () => recolour(i, c);
+      sws.appendChild(b);
+    }
+    row.append(name, sws);
+    const spin = document.createElement('button'); spin.type = 'button'; spin.className = 'rm';
+    const spinning = Boolean(f.motion && f.motion.spin);
+    spin.textContent = spinning ? 'Stop spinning' : 'Spin';
+    spin.setAttribute('aria-pressed', String(spinning));
+    spin.onclick = () => setSpin(i, !spinning, f.name);
+    row.appendChild(spin);
+    if (show.formations.length > 1) {
+      const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm';
+      rm.textContent = 'Take out'; rm.onclick = () => removeForm(i, f.name);
+      row.appendChild(rm);
+    }
+    box.appendChild(row);
+  });
+}
+async function recolour(i, c) {
+  try {
+    await api(`/api/design/shows/${enc(state.show)}/formations/${i}/effect`, { method: 'POST',
+      body: { effect: 'solid', params: { color: c } } });
+    await loadForms(); stale();
+  } catch (e) { toast(e.message); }
+}
+async function setSpin(i, on, name) {
+  try {
+    await api(`/api/design/shows/${enc(state.show)}/formations/${i}/motion`, { method: 'PUT',
+      body: on ? { spin: 360 } : {} });
+    await loadForms(); stale(); toast(on ? `"${name}" will turn all the way round.` : `"${name}" holds still.`);
+  } catch (e) { toast(e.message); }
+}
+async function removeForm(i, name) {
+  try {
+    await api(`/api/design/shows/${enc(state.show)}/formations/${i}`, { method: 'DELETE' });
+    await loadForms(); stale(); toast(`Took out "${name}". Press Undo to bring it back.`);
+  } catch (e) { toast(e.message); }
+}
+/* drawing pad: lines become a picture made of drones */
+const pad = $('pad'), pg = pad.getContext('2d'), strokes = []; let line = null;
+const padAt = e => { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * pad.width / r.width, (e.clientY - r.top) * pad.height / r.height]; };
+function padDraw() {
+  pg.clearRect(0, 0, pad.width, pad.height);
+  pg.lineWidth = 8; pg.lineCap = 'round'; pg.lineJoin = 'round';
+  pg.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+  for (const s of strokes) { pg.beginPath(); s.forEach(([x, y], i) => i ? pg.lineTo(x, y) : pg.moveTo(x, y)); pg.stroke(); }
+}
+pad.addEventListener('pointerdown', e => { try { pad.setPointerCapture(e.pointerId); } catch {} line = [padAt(e)]; strokes.push(line); });
+pad.addEventListener('pointermove', e => { if (!line) return; const p = padAt(e), q = line.at(-1); if (Math.hypot(p[0] - q[0], p[1] - q[1]) >= 3) { line.push(p); padDraw(); } });
+pad.addEventListener('pointerup', () => { if (line && line.length < 2) strokes.pop(); line = null; padDraw(); });
+$('padUndo').onclick = () => { strokes.pop(); padDraw(); };
+$('padClear').onclick = () => { strokes.length = 0; padDraw(); };
+$('addDrawing').onclick = async () => {
+  if (!state.show) return toast('Make a show in step 1 first.');
+  if (!strokes.length) return toast('Draw something first.');
+  try {
+    const r = await api(`/api/design/shows/${enc(state.show)}/draw`, { method: 'POST',
+      body: { strokes, name: 'my drawing', color: [255, 215, 50] } });
+    strokes.length = 0; padDraw(); await loadForms(); stale();
+    toast(r.warning ? 'Added, but it may be too big. Step 3 will check.' : 'Your drawing is in the show!');
+  } catch (e) { toast(e.message); }
+};
+
+$('undo').onclick = async () => {
+  try { await api(`/api/design/shows/${enc(state.show)}/undo`, { method: 'POST' }); await loadForms(); stale(); toast('Undone.'); }
+  catch (e) { toast(e.message === 'nothing to undo' ? 'Nothing to undo.' : e.message); }
+};
+function stale() { if (!$('player').hidden || $('verdict').innerHTML) { $('verdict').innerHTML = '<p class="help" style="margin-top:12px">You changed the show. Press Check and play again.</p>'; $('player').hidden = true; setPlaying(false); } }
+
+/* ---------- step 3: check and watch ---------- */
+$('check').onclick = async () => {
+  const btn = $('check'); btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    const prep = await api(`/api/design/shows/${enc(state.show)}/prepare`, { method: 'POST' });
+    const rep = await api(`/api/design/shows/${enc(prep.saved_as)}/validate`, { method: 'POST' });
+    showVerdict(rep);
+    await loadReplay(prep.saved_as);
+  } catch (e) {
+    $('verdict').innerHTML = ''; const v = document.createElement('div'); v.className = 'verdict bad';
+    v.textContent = e.message; $('verdict').appendChild(v);
+  } finally { btn.disabled = false; btn.textContent = 'Check and play'; }
+};
+function showVerdict(rep) {
+  const v = document.createElement('div');
+  if (rep.passed) {
+    v.className = 'verdict good';
+    v.textContent = `Safe to fly. The closest two drones ever get is ${rep.metrics.min_separation_m.toFixed(1)} m apart.`;
+  } else {
+    v.className = 'verdict bad';
+    v.textContent = 'Not safe to fly yet:';
+    const ul = document.createElement('ul');
+    const seen = new Set();
+    for (const x of rep.violations.filter(x => x.severity === 'error')) {
+      const words = PLAIN[x.kind] || x.message;
+      if (seen.has(words)) continue; seen.add(words);
+      const li = document.createElement('li'); li.textContent = words; ul.appendChild(li);
+    }
+    const tip = document.createElement('li');
+    tip.textContent = 'Try fewer drones, take out the picture that is too big, or open the full editor for more tools.';
+    ul.appendChild(tip); v.appendChild(ul);
+  }
+  $('verdict').innerHTML = ''; $('verdict').appendChild(v);
+}
+
+/* ---------- 3D player ---------- */
+const canvas = $('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.5, 5000);
+camera.position.set(-90, 70, 230);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 50, 0); controls.enableDamping = true; controls.update();
+const grid = new THREE.GridHelper(400, 40, 0x2c3760, 0x1a2242); scene.add(grid);
+const dot = document.createElement('canvas'); dot.width = dot.height = 64;
+{ const g = dot.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,0.8)');
+  gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }
+const sprite = new THREE.CanvasTexture(dot);
+let replay = null, pos = null, col = null, geo = null, points = null, t = 0, playing = false, last = 0;
+
+function b64(s, Type) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Type(u.buffer); }
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+async function loadReplay(name) {
+  replay = await api(`/api/design/shows/${enc(name)}/replay?fps=4`);
+  pos = b64(replay.pos, Int16Array); col = b64(replay.col, Uint8Array);
+  if (points) { scene.remove(points); geo.dispose(); }
+  geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(replay.drones * 3), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(replay.drones * 3), 3));
+  points = new THREE.Points(geo, new THREE.PointsMaterial({ size: 7, map: sprite, vertexColors: true,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  scene.add(points);
+  // Frame the whole show: a 20 drone show is tiny from where a 300 drone one fits.
+  let reach = 10, top = 10;
+  for (let k = 0; k < pos.length; k += 3) {
+    reach = Math.max(reach, Math.abs(pos[k]), Math.abs(pos[k + 1])); top = Math.max(top, pos[k + 2]);
+  }
+  reach /= 10; top /= 10;
+  const dist = Math.max(40, 1.5 * Math.max(reach * 2, top));
+  controls.target.set(0, top * 0.5, 0);
+  camera.position.set(-dist * 0.35, top * 0.5 + dist * 0.15, dist);
+  controls.update();
+  $('player').hidden = false; resize();
+  setTime(0); setPlaying(!matchMedia('(prefers-reduced-motion: reduce)').matches);
+  $('player').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function setTime(next) {
+  t = Math.min(replay.duration, Math.max(0, next));
+  const n = replay.drones, f = t * replay.fps, i = Math.min(replay.frames - 2, Math.floor(f)), a = Math.min(1, f - i);
+  const P = geo.attributes.position.array, C = geo.attributes.color.array, o0 = i * n * 3, o1 = (i + 1) * n * 3;
+  for (let k = 0; k < n * 3; k += 3) {
+    const lerp = (arr, j) => arr[o0 + k + j] + (arr[o1 + k + j] - arr[o0 + k + j]) * a;
+    P[k] = lerp(pos, 0) / 10; P[k + 1] = lerp(pos, 2) / 10; P[k + 2] = -lerp(pos, 1) / 10;
+    for (let j = 0; j < 3; j++) C[k + j] = Math.max(lerp(col, j) / 255, 0.06);
+  }
+  geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+  $('scrub').value = String(Math.round(t / replay.duration * 1000));
+  $('clock').textContent = `${fmt(t)} / ${fmt(replay.duration)}`;
+  const seg = replay.segments.find(s => t >= s.start && t < s.end) || replay.segments.at(-1);
+  const label = { ground: 'on the ground', climb: 'taking off', rth: 'coming home', land: 'landing' }[seg.name] || seg.name;
+  $('hud').textContent = label;
+}
+function setPlaying(on) { playing = on; $('play').textContent = on ? 'Pause' : 'Play'; last = 0; }
+$('play').onclick = () => setPlaying(!playing);
+$('scrub').oninput = () => { setPlaying(false); setTime(Number($('scrub').value) / 1000 * replay.duration); };
+function resize() { const w = canvas.clientWidth, h = canvas.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(canvas);
+renderer.setAnimationLoop(now => {
+  if (!replay || $('player').hidden) return;
+  if (playing) { const dt = last ? (now - last) / 1000 : 0; last = now; let nt = t + dt; if (nt >= replay.duration) nt = 0; setTime(nt); }
+  controls.update(); renderer.render(scene, camera);
+});
+
+setCount(50);
+loadTemplates();
+</script>
+</body>
+</html>

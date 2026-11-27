@@ -1,0 +1,3482 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sky Shine</title>
+<style>
+/* ------------------------------------------------------------------ *
+ * Layout rule that matters most: every scrolling region is a grid or
+ * flex child with min-height:0 and its own overflow. Without that,
+ * content growth pushes the panels around and the button you were
+ * about to click moves out from under the cursor mid-show.
+ * ------------------------------------------------------------------ */
+:root {
+  --bg:#06070a; --panel:#0d1016; --panel2:#141926; --panel3:#1b2130;
+  --line:#232b3b; --line2:#2e384c;
+  --ink:#e8edf6; --dim:#8794aa; --faint:#5b6678;
+  --accent:#5ad1ff; --accent-dim:#17384a;
+  --ok:#35d08a; --warn:#ffc24b; --bad:#ff5c6c; --pyro:#ff9d3c;
+  --mono: ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --r:7px;
+}
+:root[data-theme="light"] {
+  --bg:#f4f6fa; --panel:#fff; --panel2:#eef1f6; --panel3:#e4e9f1;
+  --line:#d6dce7; --line2:#c3ccdb;
+  --ink:#161b24; --dim:#5a6678; --faint:#8995a8;
+  --accent:#0a7ea4; --accent-dim:#d5eef8;
+  --ok:#17804f; --warn:#9a6700; --bad:#c0303f; --pyro:#b45309;
+}
+* { box-sizing:border-box; }
+html,body { height:100%; margin:0; overflow:hidden; }
+body {
+  background:var(--bg); color:var(--ink);
+  font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+button,input,select,textarea { font:inherit; color:inherit; }
+
+#app { display:grid; grid-template-columns:190px 380px minmax(0,1fr); height:100%; }
+@media (max-width:1200px){ #app{grid-template-columns:64px 340px minmax(0,1fr);}
+  .nav .lb, .nav .brand h1 b, .navfoot .pill{ display:none; }
+  .navtools{ flex-direction:column; align-items:flex-start; font-size:10px; } }
+
+/* ERP layout: the menu picks which panels the options column shows. */
+.nav { border-right:1px solid var(--line); background:var(--panel2); }
+.nav .brand { padding:13px 14px; border-bottom:1px solid var(--line); }
+.navlist { flex:1; overflow-y:auto; padding:8px 6px; display:flex; flex-direction:column; gap:2px; }
+.navlist button { display:flex; align-items:center; justify-content:flex-start; gap:10px; width:100%; text-align:left;
+  padding:9px 10px; border-radius:var(--r); border:1px solid transparent; background:none;
+  font-size:13.5px; color:var(--ink); cursor:pointer; }
+.navlist button:hover { background:var(--panel3); }
+.navlist button[aria-current="page"] { background:var(--accent-dim); border-color:var(--accent);
+  color:var(--ink); font-weight:600; }
+.navlist .ic { font-size:17px; width:22px; text-align:center; flex:none; }
+.navfoot { border-top:1px solid var(--line); padding:9px 10px; display:flex;
+  flex-direction:column; gap:8px; }
+.navtools { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.menuhead h2 { font-size:17px; margin:0 0 2px; font-weight:600; }
+section.offmenu { display:none !important; }
+section[data-menu] > header { font-size:11.5px; color:var(--ink); }
+/* Below ~1000px three columns leave the 3D view a sliver; stack instead,
+   stage first, and let the page scroll. */
+@media (max-width:1000px){
+  html,body{ height:auto; overflow:auto; }
+  #app{ grid-template-columns:minmax(0,1fr); height:auto; }
+  .col.stage{ order:-1; height:85vh; }
+  .col.left{ border:0; border-top:1px solid var(--line); }
+  .nav{ order:-2; } .navlist{ flex-direction:row; flex-wrap:wrap; }
+  .navlist button{ width:auto; } .nav .lb{ display:inline; }
+  .colbody{ overflow:visible; }
+}
+
+.col { display:flex; flex-direction:column; min-height:0; min-width:0;
+       background:var(--panel); }
+.col.left { border-right:1px solid var(--line); }
+.col.right { border-left:1px solid var(--line); }
+.colbody { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+.col.left .colbody { display:flex; flex-direction:column; }
+.col.left .colbody > section { flex:none; }
+
+.bar-top { display:flex; align-items:center; justify-content:space-between;
+  gap:8px; padding:10px 13px; border-bottom:1px solid var(--line); flex:none;
+  background:var(--panel); }
+h1 { font-size:14px; margin:0; letter-spacing:.1em; text-transform:uppercase; }
+h1 b { color:var(--accent); font-weight:700; }
+
+section { border-bottom:1px solid var(--line); }
+section > header { display:flex; align-items:center; justify-content:space-between;
+  padding:9px 13px 6px; font-size:10.5px; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--dim); font-weight:600; }
+section > .inner { padding:0 13px 13px; }
+
+label { display:block; font-size:10.5px; color:var(--dim); margin:8px 0 3px;
+  letter-spacing:.03em; }
+input,select,textarea {
+  background:var(--panel2); border:1px solid var(--line); border-radius:var(--r);
+  padding:6px 8px; width:100%; outline:none;
+}
+input:focus,select:focus,textarea:focus { border-color:var(--accent); }
+input[type=range]{ padding:0; border:0; background:none; }
+input[type=color]{ padding:2px; height:30px; cursor:pointer; }
+input[type=checkbox]{ width:auto; accent-color:var(--accent); vertical-align:-2px; }
+
+button {
+  background:var(--panel2); border:1px solid var(--line); border-radius:var(--r);
+  padding:7px 10px; width:100%; cursor:pointer; transition:.12s;
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+}
+button:hover:not(:disabled){ border-color:var(--accent); color:var(--accent); }
+button:active:not(:disabled){ transform:translateY(1px); }
+button:disabled{ opacity:.35; cursor:not-allowed; }
+button.primary{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+button.go{ background:#0f3a22; border-color:#1f7a45; color:#a6f0c6; }
+:root[data-theme=light] button.go{ background:#dcf5e6; border-color:#17804f; color:#116039; }
+button.danger{ background:#3a1620; border-color:#7a2a36; color:#ffc3cb; }
+:root[data-theme=light] button.danger{ background:#fde4e8; border-color:#c0303f; color:#8c1b28; }
+button.ghost{ background:none; border-color:transparent; color:var(--dim); }
+button.sm{ padding:4px 8px; font-size:11.5px; width:auto; }
+button.icon{ width:30px; padding:5px; flex:none; }
+
+.row{ display:flex; gap:6px; } .row>*{ flex:1; min-width:0; }
+.row.tight{ gap:4px; }
+.g2{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.g3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
+.mini{ font-size:11px; color:var(--dim); line-height:1.45; }
+.mono{ font-family:var(--mono); font-size:11px; }
+.spacer{ flex:1; }
+
+.tabs{ display:flex; gap:3px; background:var(--panel2); padding:3px;
+  border-radius:var(--r); border:1px solid var(--line); }
+.tabs button{ width:auto; padding:4px 11px; font-size:12px; border:0;
+  background:none; border-radius:5px; }
+.tabs button[aria-selected=true]{ background:var(--accent-dim); color:var(--accent); }
+
+.pill{ display:inline-flex; align-items:center; gap:5px; padding:2px 9px;
+  border-radius:99px; font-size:10px; letter-spacing:.07em; text-transform:uppercase;
+  border:1px solid; font-weight:600; white-space:nowrap; }
+.pill .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+.pill.ok{ color:var(--ok); border-color:var(--ok); background:color-mix(in srgb,var(--ok) 12%,transparent); }
+.pill.warn{ color:var(--warn); border-color:var(--warn); background:color-mix(in srgb,var(--warn) 12%,transparent); }
+.pill.bad{ color:var(--bad); border-color:var(--bad); background:color-mix(in srgb,var(--bad) 12%,transparent); }
+.pill.idle{ color:var(--faint); border-color:var(--line2); }
+.pill.live .dot{ animation:blink 1.1s infinite; }
+@keyframes blink{ 50%{opacity:.25} }
+
+ul.list{ list-style:none; margin:0; padding:0; }
+ul.list li{ border:1px solid var(--line); border-radius:var(--r); padding:7px 9px;
+  margin-bottom:5px; background:var(--panel2); font-size:12px; cursor:pointer; }
+ul.list li:hover{ border-color:var(--line2); }
+ul.list li[aria-selected=true]{ border-color:var(--accent); background:var(--accent-dim); }
+ul.list li .t{ display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+
+.kv{ display:flex; justify-content:space-between; gap:8px; padding:2.5px 0;
+  font-family:var(--mono); font-size:11px; }
+.kv span:first-child{ color:var(--dim); }
+.kv b{ font-weight:600; }
+
+.check{ display:flex; gap:8px; align-items:flex-start; padding:4px 0; font-size:12px; }
+.check .dot{ width:8px; height:8px; border-radius:50%; margin-top:5px; flex:none; }
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+.dot.warn{background:var(--warn)} .dot.idle{background:var(--faint)}
+
+/* steps ---------------------------------------------------------- */
+.step{ display:flex; align-items:center; gap:9px; padding:6px 0; }
+.step .n{ width:20px; height:20px; border-radius:50%; flex:none; display:grid;
+  place-items:center; font-size:10.5px; font-weight:700;
+  border:1px solid var(--line2); color:var(--faint); }
+.step[data-state=done] .n{ background:var(--ok); border-color:var(--ok); color:#04120b; }
+.step[data-state=ready] .n{ border-color:var(--accent); color:var(--accent); }
+.step[data-state=blocked] .n{ border-color:var(--line2); }
+.step .lbl{ flex:1; min-width:0; }
+.step .lbl .sub{ font-size:10.5px; color:var(--dim); }
+.step[data-state=blocked] .lbl{ color:var(--faint); }
+
+/* stage ---------------------------------------------------------- */
+.stage{ position:relative; display:flex; flex-direction:column; min-height:0; }
+#view{ flex:1; min-height:0; position:relative; }
+#view canvas{ display:block; }
+#map{ position:absolute; inset:0; display:none; }
+#hud{ position:absolute; left:12px; top:12px; pointer-events:none;
+  font-family:var(--mono); font-size:11px; color:var(--dim);
+  background:color-mix(in srgb,var(--bg) 82%,transparent);
+  border:1px solid var(--line); border-radius:var(--r); padding:8px 11px;
+  backdrop-filter:blur(6px); }
+#hud b{ color:var(--ink); font-weight:600; }
+#legend{ position:absolute; right:12px; top:12px; pointer-events:none;
+  font-size:10.5px; color:var(--dim); background:color-mix(in srgb,var(--bg) 82%,transparent);
+  border:1px solid var(--line); border-radius:var(--r); padding:7px 10px;
+  backdrop-filter:blur(6px); display:none; }
+#legend i{ display:inline-block; width:8px; height:8px; border-radius:50%;
+  margin-right:5px; vertical-align:0; }
+
+/* transport + timeline ------------------------------------------- */
+.transport{ flex:none; border-top:1px solid var(--line); background:var(--panel); }
+.transport .controls{ display:flex; align-items:center; gap:9px; padding:7px 12px; }
+.clock{ font-family:var(--mono); font-size:12.5px; color:var(--accent);
+  min-width:124px; font-variant-numeric:tabular-nums; }
+#timeline{ display:block; width:100%; height:62px; cursor:ew-resize; }
+
+/* drone matrix ---------------------------------------------------- */
+#matrix{ display:block; width:100%; cursor:crosshair; border-radius:var(--r);
+  border:1px solid var(--line); background:var(--panel2); }
+
+/* report ---------------------------------------------------------- */
+.verdict{ display:flex; align-items:center; gap:9px; padding:9px 11px;
+  border-radius:var(--r); border:1px solid; margin-bottom:9px; font-weight:600; }
+.verdict.pass{ color:var(--ok); border-color:var(--ok);
+  background:color-mix(in srgb,var(--ok) 10%,transparent); }
+.verdict.fail{ color:var(--bad); border-color:var(--bad);
+  background:color-mix(in srgb,var(--bad) 10%,transparent); }
+.finding{ border-left:2px solid var(--line2); padding:5px 0 5px 9px;
+  margin-bottom:6px; font-size:11.5px; }
+.finding.error{ border-left-color:var(--bad); }
+.finding.warning{ border-left-color:var(--warn); }
+.finding .h{ font-family:var(--mono); font-size:10.5px; color:var(--dim);
+  text-transform:uppercase; letter-spacing:.05em; }
+
+/* toast + modal --------------------------------------------------- */
+#toast{ position:absolute; left:50%; top:14px; transform:translateX(-50%);
+  max-width:620px; width:max-content; z-index:40; display:flex;
+  flex-direction:column; gap:6px; pointer-events:none; }
+.msg{ background:var(--panel3); border:1px solid var(--line);
+  border-left-width:3px; border-radius:var(--r); padding:8px 13px;
+  font-size:12px; box-shadow:0 8px 30px #0007; pointer-events:auto; }
+.msg.ok{border-left-color:var(--ok)} .msg.bad{border-left-color:var(--bad)}
+.msg.warn{border-left-color:var(--warn)} .msg.info{border-left-color:var(--accent)}
+
+dialog{ border:1px solid var(--line2); border-radius:10px; background:var(--panel);
+  color:var(--ink); padding:0; max-width:520px; width:92vw;
+  box-shadow:0 24px 70px #000a; }
+dialog::backdrop{ background:#000a; backdrop-filter:blur(2px); }
+dialog .dh{ padding:14px 17px 0; font-size:15px; font-weight:600; }
+dialog .db{ padding:9px 17px 2px; font-size:12.5px; color:var(--dim);
+  white-space:pre-wrap; max-height:46vh; overflow:auto; }
+dialog .df{ display:flex; gap:7px; justify-content:flex-end; padding:15px 17px; }
+dialog .df button{ width:auto; min-width:88px; }
+
+table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
+th,td{ text-align:left; padding:3px 4px; border-bottom:1px solid var(--line); }
+th{ color:var(--dim); font-weight:500; position:sticky; top:0; background:var(--panel); }
+.scroll{ max-height:230px; overflow-y:auto; }
+details > summary{ cursor:pointer; color:var(--dim); font-size:10.5px;
+  text-transform:uppercase; letter-spacing:.1em; padding:4px 0; user-select:none; }
+details[open] > summary{ color:var(--ink); }
+kbd{ font-family:var(--mono); font-size:10px; background:var(--panel3);
+  border:1px solid var(--line2); border-bottom-width:2px; border-radius:4px;
+  padding:1px 4px; color:var(--dim); }
+.empty{ text-align:center; color:var(--faint); padding:18px 10px; font-size:12px; }
+
+/* voice ----------------------------------------------------------- */
+#mic{ position:absolute; right:16px; bottom:16px; z-index:30; width:52px;
+  height:52px; border-radius:50%; border:1px solid var(--line2);
+  background:var(--panel2); display:grid; place-items:center; font-size:20px;
+  cursor:pointer; box-shadow:0 6px 24px #0006; transition:.15s; padding:0; }
+#mic:hover{ border-color:var(--accent); }
+#mic[data-state=listening]{ background:#3a1620; border-color:var(--bad);
+  color:var(--bad); animation:pulsate 1.2s infinite; }
+#mic[data-state=standby]{ border-color:var(--accent); color:var(--accent); }
+#mic[data-state=thinking]{ border-color:var(--warn); color:var(--warn); }
+#mic[data-state=off]{ opacity:.4; cursor:not-allowed; }
+@keyframes pulsate{ 50%{ box-shadow:0 0 0 10px #ff5c6c22; } }
+#voiceStrip{ position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
+  z-index:29; max-width:min(680px,72%); display:none; flex-direction:column;
+  gap:6px; align-items:center; pointer-events:none; }
+#voiceStrip.on{ display:flex; }
+.vline{ background:color-mix(in srgb,var(--bg) 88%,transparent);
+  border:1px solid var(--line); border-radius:999px; padding:7px 16px;
+  font-size:13px; backdrop-filter:blur(8px); box-shadow:0 6px 22px #0005;
+  max-width:100%; }
+.vline.heard{ color:var(--ink); }
+.vline.said{ color:var(--accent); border-color:var(--accent); }
+.vline.refused{ color:var(--bad); border-color:var(--bad); }
+#voiceLog{ max-height:190px; overflow-y:auto; }
+.vrow{ border-left:2px solid var(--line2); padding:4px 0 4px 8px;
+  margin-bottom:5px; font-size:11.5px; }
+.vrow.auto{ border-left-color:var(--ok); }
+.vrow.confirm{ border-left-color:var(--warn); }
+.vrow.refused{ border-left-color:var(--bad); }
+.vrow .q{ color:var(--dim); font-style:italic; }
+.chips{ display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; }
+.chip{ border:1px solid var(--line); border-radius:999px; padding:2px 9px;
+  font-size:11px; color:var(--dim); cursor:pointer; background:var(--panel2); }
+.chip:hover{ border-color:var(--accent); color:var(--accent); }
+
+/* artwork --------------------------------------------------------- */
+#maskPreview{ width:100%; border:1px solid var(--line); border-radius:var(--r);
+  background:var(--panel2); display:block; margin-top:7px; min-height:90px;
+  object-fit:contain; }
+.drop{ border:1px dashed var(--line2); border-radius:var(--r); padding:14px 10px;
+  text-align:center; color:var(--dim); font-size:12px; cursor:pointer;
+  transition:.12s; }
+.drop:hover,.drop.over{ border-color:var(--accent); color:var(--accent);
+  background:var(--accent-dim); }
+#assetList{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.asset{ border:1px solid var(--line); border-radius:var(--r); padding:3px 8px;
+  font-size:11px; cursor:pointer; background:var(--panel2); display:flex;
+  gap:6px; align-items:center; }
+.asset[aria-selected=true]{ border-color:var(--accent); color:var(--accent); }
+.asset b{ font-weight:500; max-width:110px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.asset .x{ color:var(--faint); }
+.asset .x:hover{ color:var(--bad); }
+
+/* registry -------------------------------------------------------- */
+#login{ position:fixed; inset:0; z-index:100; display:none; place-items:center;
+  background:color-mix(in srgb,var(--bg) 92%,transparent); backdrop-filter:blur(6px); }
+#loginForm{ width:min(340px,90vw); background:var(--panel); border:1px solid var(--line2);
+  border-radius:12px; padding:24px 22px; box-shadow:0 24px 70px #000a; }
+
+#regTable td, #regTable th{ font-size:10.5px; padding:2px 4px; }
+#regTable tr.maintenance td{ color:var(--warn); }
+#regTable tr.retired td{ color:var(--faint); text-decoration:line-through; }
+#regTable tr.assigned td:first-child{ color:var(--accent); font-weight:600; }
+.status-sel{ padding:1px 3px; font-size:10.5px; width:auto; }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ================= DESIGN ================= -->
+<!-- ================= MENU ================= -->
+<nav class="col nav" aria-label="Menu">
+  <div class="brand"><h1>Sky<b>Shine</b></h1></div>
+  <div class="navlist">
+    <button data-go="shows" title="Open a show, or start a new one."><span class="ic">&#128193;</span><span class="lb">My shows</span></button>
+    <button data-go="shapes" title="Add shapes, then put them in the order they fly."><span class="ic">&#10024;</span><span class="lb">Shapes</span></button>
+    <button data-go="edit" title="Click drones in the 3D view, then move, turn, spin or recolour them."><span class="ic">&#9995;</span><span class="lb">Edit drones</span></button>
+    <button data-go="import" title="Bring in a 3D model, a drawing, a logo or text."><span class="ic">&#128229;</span><span class="lb">Import</span></button>
+    <button data-go="lights" title="Colours, light effects and pyro."><span class="ic">&#128161;</span><span class="lb">Lights</span></button>
+    <button data-go="music" title="Add the song and set the beat."><span class="ic">&#127925;</span><span class="lb">Music</span></button>
+    <button data-go="ai" title="Describe a show, fix problems, match the music, or talk to it."><span class="ic">&#129302;</span><span class="lb">AI helper</span></button>
+    <button data-go="site" title="Where you fly, how high, and where drones must not go."><span class="ic">&#128506;</span><span class="lb">Venue & limits</span></button>
+    <button data-go="check" title="Make it safe to fly, then save it for the drones."><span class="ic">&#9989;</span><span class="lb">Check & export</span></button>
+    <button data-go="fleet" title="Your aircraft and the radio link to them."><span class="ic">&#128641;</span><span class="lb">Drones</span></button>
+    <button data-go="fly" title="Preflight checks, launch, and the show in the air."><span class="ic">&#128640;</span><span class="lb">Fly</span></button>
+  </div>
+  <div class="navfoot">
+    <span id="phasePill" class="pill idle"><span class="dot"></span>unloaded</span>
+    <div class="navtools">
+      <a class="sm" href="/simple" title="Big buttons: pick a show, colour it, watch it"
+         style="color:var(--accent);text-decoration:none;white-space:nowrap">Simple mode</a>
+      <a class="sm" href="#claude-key" title="Turn Claude on: paste your key"
+         style="color:var(--accent);text-decoration:none;white-space:nowrap">Claude key</a>
+      <button class="icon ghost" id="btnTheme" title="Light / dark">◐</button>
+      <button class="icon ghost" id="btnHelp" title="Keyboard shortcuts">?</button>
+      <span class="mini mono" id="who"
+            style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px"></span>
+      <button class="sm ghost" id="btnLogout"
+              style="display:none;white-space:nowrap">Sign out</button>
+    </div>
+  
+  </div>
+</nav>
+
+<aside class="col left">
+  <div class="bar-top menuhead">
+    <div><h2 id="menuTitle">My shows</h2><div class="mini" id="menuHint"></div></div>
+  </div>
+  <div class="colbody">
+
+  <section data-menu="shows">
+    <header>Show library <button class="sm ghost" id="btnNew">+ New</button></header>
+    <div class="inner">
+      <ul class="list" id="showList"><li class="empty">Loading…</li></ul>
+      <select id="tplPick" aria-label="New show from a template" style="width:100%;margin-top:6px">
+        <option value="">New from template…</option>
+      </select>
+      <div class="row tight">
+        <button class="sm" id="btnUndo" title="Undo the last edit (Ctrl+Z)">Undo</button>
+        <button class="sm" id="btnRedo" title="Redo (Ctrl+Y)">Redo</button>
+        <button class="sm" id="btnCopy">Duplicate</button>
+      </div>
+      <div class="row tight">
+        <button class="sm" id="btnDup">Adapt…</button>
+        <button class="sm danger" id="btnDel">Delete</button>
+      </div>
+      <div id="capacity" class="mini" style="margin-top:9px"></div>
+    </div>
+  </section>
+
+  <section data-menu="shapes">
+    <header>Add formation</header>
+    <div class="inner">
+      <label>Shape</label><select id="shape"></select>
+      <div id="shapeParams"></div>
+      <div class="g2">
+        <div><label>Base altitude (m)</label><input id="fAlt" type="number" value="50"></div>
+        <div><label>Yaw of shape (°)</label><input id="fYaw" type="number" value="0" step="5"></div>
+      </div>
+      <label for="fDrones">Drones to use (blank = all; the rest wait unlit behind)</label>
+      <input id="fDrones" type="number" min="1" step="1" placeholder="all">
+      <div class="g2">
+        <div><label>Transition (s)</label><input id="fTrans" type="number" value="9" step="0.5"></div>
+        <div><label>Hold (s)</label><input id="fHold" type="number" value="5" step="0.5"></div>
+      </div>
+      <div class="g2">
+        <div><label>Colour</label><input id="fColor" type="color" value="#ff4a14"></div>
+        <div><label>Easing</label><select id="fEase">
+          <option value="minjerk" selected>min jerk</option>
+          <option value="smoothstep">smooth step</option>
+          <option value="linear">linear</option>
+        </select></div>
+      </div>
+      <label>Name</label><input id="fName" value="formation">
+      <button class="primary" id="btnAdd" style="margin-top:9px">Add to storyboard</button>
+    </div>
+  </section>
+
+  <section data-menu="shapes">
+    <header>Storyboard <span class="mini" id="sbCount"></span></header>
+    <div class="inner">
+      <ul class="list" id="formationList"></ul>
+      <div class="row tight">
+        <button class="sm primary" id="btnPrepare">Prepare</button>
+        <button class="sm go" id="btnValidate">Validate</button>
+      </div>
+    </div>
+  </section>
+
+  <section data-menu="check" style="order:1">
+    <header>Flight charts <button class="sm ghost" id="btnCharts">Draw</button></header>
+    <div class="inner" id="chartBox">
+      <div class="mini" id="chartNote">Height, speed, acceleration and spacing over the whole show, from the
+        same samples the safety check uses. Click a chart to jump there.</div>
+      <div id="charts"></div>
+    </div>
+  </section>
+
+  <section data-menu="lights">
+    <header>Light effect <span class="mini" id="fxTarget">no formation selected</span></header>
+    <div class="inner">
+      <label>Effect</label><select id="effect"></select>
+      <div id="effectParams"></div>
+      <label><input type="checkbox" id="fxBeat"> lock period to music</label>
+      <div id="fxBeatBox" style="display:none">
+        <label>Beats per cycle</label><input id="fxBeats" type="number" value="1" step="0.5" min="0.25">
+      </div>
+      <label><input type="checkbox" id="fxPicked"> only the picked drones</label>
+      <button class="primary" id="btnEffect" style="margin-top:9px">Render onto formation</button>
+      <div class="mini" id="fxNote" style="margin-top:7px"></div>
+    </div>
+  </section>
+
+  <section data-menu="music">
+    <header>Music</header>
+    <div class="inner">
+      <div class="g2">
+        <div><label>BPM</label><input id="mBpm" type="number" step="0.1" placeholder="none"></div>
+        <div><label>Downbeat (s)</label><input id="mPhase" type="number" step="0.01" value="0"></div>
+      </div>
+      <label for="songFile">Song</label>
+      <input id="songFile" type="file" accept="audio/*,.mp3,.wav,.ogg,.flac,.m4a">
+      <div class="mini" id="songNote" style="margin-top:4px">No song uploaded.</div>
+      <div class="g2">
+        <div><label for="mOffset">Song time at show start (s)</label><input id="mOffset" type="number" step="0.01" value="0"></div>
+        <div style="align-self:end"><button class="sm" id="btnTempo">Detect tempo</button></div>
+      </div>
+      <label>Audio file path</label><input id="mPath" placeholder="uploaded songs fill this in">
+      <div class="row tight" style="margin-top:7px">
+        <button class="sm" id="btnMusic">Save</button>
+        <button class="sm" id="btnCue">Add cue at playhead</button>
+      </div>
+      <div class="mini" id="mNote" style="margin-top:7px"></div>
+    </div>
+  </section>
+
+  <section data-menu="import">
+    <header>Import design</header>
+    <div class="inner">
+      <label for="impFile">3D model or drawing</label>
+      <input id="impFile" type="file" accept=".obj,.stl,.ply,.glb,.svg">
+      <div class="g3">
+        <div><label for="impMode">Place drones on</label>
+          <select id="impMode">
+            <option value="auto">automatic</option>
+            <option value="surface">model surface</option>
+            <option value="vertices">model points</option>
+            <option value="outline">drawing lines</option>
+            <option value="fill">drawing fill</option>
+          </select></div>
+        <div><label for="impUp">Model up axis</label>
+          <select id="impUp"><option value="y">Y (glTF, Blender export)</option><option value="z">Z (CAD, STL)</option></select></div>
+        <div><label for="impSize">Size (m, 0 = auto)</label><input id="impSize" type="number" value="0" min="0" step="5"></div>
+      </div>
+      <button class="primary" id="btnImport" style="margin-top:8px">Import as a formation</button>
+      <div class="mini" style="margin-top:7px">
+        OBJ, STL, PLY and GLB models, or SVG drawings. From Blender, Maya or
+        3ds Max, export OBJ or GLB. The result is an ordinary formation you
+        can colour, move, animate and check.
+      </div>
+    </div>
+  </section>
+
+  <section data-menu="site">
+    <header>Flight limits</header>
+    <div class="inner">
+      <div class="g3">
+        <div><label for="lmSep">Min separation (m)</label><input id="lmSep" type="number" step="0.1" min="0.5"></div>
+        <div><label for="lmCeil">Ceiling (m)</label><input id="lmCeil" type="number" step="1"></div>
+        <div><label for="lmFloor">Lowest flight (m)</label><input id="lmFloor" type="number" step="0.5"></div>
+      </div>
+      <div class="g3">
+        <div><label for="lmVxy">Max sideways (m/s)</label><input id="lmVxy" type="number" step="0.5" min="0.5"></div>
+        <div><label for="lmUp">Max climb (m/s)</label><input id="lmUp" type="number" step="0.5" min="0.5"></div>
+        <div><label for="lmDown">Max descent (m/s)</label><input id="lmDown" type="number" step="0.5" min="0.5"></div>
+      </div>
+      <div class="g3">
+        <div><label for="lmAcc">Max accel (m/s²)</label><input id="lmAcc" type="number" step="0.5" min="0.5"></div>
+        <div><label for="lmShare">Moving share (0.1–1)</label><input id="lmShare" type="number" step="0.05" min="0.1" max="1"></div>
+        <div><label for="lmBat">Battery (s)</label><input id="lmBat" type="number" step="30" min="60"></div>
+      </div>
+      <button class="sm" id="btnLimits" style="margin-top:7px">Save limits</button>
+      <div class="mini" style="margin-top:6px">Set these from your airframe and your permit. Prepare and the
+        safety check use them; changing them means preparing again.</div>
+    </div>
+  </section>
+
+  <section data-menu="site">
+    <header>Venue</header>
+    <div class="inner">
+      <div class="mini">Ground picture: click an uploaded picture under "Logo &amp; text" first.</div>
+      <div class="g3">
+        <div><label for="vpW">Width (m)</label><input id="vpW" type="number" value="300" step="10" min="2"></div>
+        <div><label for="vpRot">Turn (°)</label><input id="vpRot" type="number" value="0" step="5"></div>
+        <div></div>
+      </div>
+      <div class="g3">
+        <div><label for="vpX">Centre east (m)</label><input id="vpX" type="number" value="0" step="5"></div>
+        <div><label for="vpY">Centre north (m)</label><input id="vpY" type="number" value="0" step="5"></div>
+        <div></div>
+      </div>
+      <div class="row tight" style="margin-top:6px">
+        <button class="sm" id="btnVenuePic">Lay picture on the ground</button>
+        <button class="sm" id="btnVenuePicOff">Remove picture</button>
+      </div>
+      <label for="vmFile" style="margin-top:10px">Site 3D model (OBJ, STL, PLY, GLB)</label>
+      <input id="vmFile" type="file" accept=".obj,.stl,.ply,.glb">
+      <div class="g3">
+        <div><label for="vmScale">Metres per unit</label><input id="vmScale" type="number" value="1" step="0.01" min="0.0001"></div>
+        <div><label for="vmUp">Up axis</label><select id="vmUp"><option value="y">Y</option><option value="z">Z</option></select></div>
+        <div><label for="vmRot">Turn (°)</label><input id="vmRot" type="number" value="0" step="5"></div>
+      </div>
+      <div class="g3">
+        <div><label for="vmX">East (m)</label><input id="vmX" type="number" value="0" step="1"></div>
+        <div><label for="vmY">North (m)</label><input id="vmY" type="number" value="0" step="1"></div>
+        <div><label for="vmZ">Up (m)</label><input id="vmZ" type="number" value="0" step="1"></div>
+      </div>
+      <div class="row tight" style="margin-top:6px">
+        <button class="sm" id="btnVenueModel">Add model</button>
+        <button class="sm" id="btnVenueZone">Keep drones away from it</button>
+        <button class="sm" id="btnVenueModelOff">Remove model</button>
+      </div>
+      <div class="mini" id="venueNote" style="margin-top:6px">The venue is only shown; a keep-out zone is what protects it.</div>
+    </div>
+  </section>
+
+  <section data-menu="site">
+    <header>Keep-out zones</header>
+    <div class="inner">
+      <div id="zoneList" class="mini"></div>
+      <div class="g3" style="margin-top:6px">
+        <div><label for="zName">Name</label><input id="zName" value="tree"></div>
+        <div><label for="zX">East (m)</label><input id="zX" type="number" value="0" step="1"></div>
+        <div><label for="zY">North (m)</label><input id="zY" type="number" value="40" step="1"></div>
+      </div>
+      <div class="g3">
+        <div><label for="zR">Radius (m)</label><input id="zR" type="number" value="8" step="1" min="0.5"></div>
+        <div><label for="zLo">Bottom (m)</label><input id="zLo" type="number" value="0" step="1"></div>
+        <div><label for="zHi">Top (m)</label><input id="zHi" type="number" value="25" step="1"></div>
+      </div>
+      <button class="sm" id="btnZoneAdd" style="margin-top:7px">Add zone</button>
+      <div class="mini" style="margin-top:6px">Cylinders no drone may enter: buildings, trees, cranes, a stage.
+        Shown in red in the 3D view; the safety check refuses a show that enters one.</div>
+    </div>
+  </section>
+
+  <section data-menu="shapes">
+    <header>Generators</header>
+    <div class="inner">
+      <div class="g3">
+        <div><label for="genKind">Make</label>
+          <select id="genKind">
+            <option value="qr">QR code</option>
+            <option value="countdown">countdown</option>
+            <option value="ticker">scrolling text</option>
+          </select></div>
+        <div id="genTextBox" style="grid-column:span 2"><label for="genText">Text or link</label>
+          <input id="genText" value="https://example.com" maxlength="200"></div>
+        <div id="genStartBox" style="display:none"><label for="genStart">Count from</label>
+          <input id="genStart" type="number" value="10" min="1" max="99"></div>
+      </div>
+      <div id="genQrBox" class="mini" style="margin-top:6px">
+        <label><input type="radio" name="genLit" value="dark" checked> light the dark squares (fewer drones; phones read it inverted)</label>
+        <label><input type="radio" name="genLit" value="light"> light the light squares (standard; about twice the drones)</label>
+        <label><input type="checkbox" id="genFlat" checked> lie flat, read from below (an upright code is 90 m+ tall)</label>
+      </div>
+      <button class="primary" id="btnGenerate" style="margin-top:8px">Add generated formation</button>
+      <div class="mini" style="margin-top:7px">Countdowns and scrolling text change lights only; the drones hold still.
+        Uses the colour and altitude above.</div>
+    </div>
+  </section>
+
+  <section data-menu="shapes">
+    <header>Draw by hand</header>
+    <div class="inner">
+      <canvas id="drawPad" width="600" height="340" aria-label="Drawing pad"
+        style="width:100%;aspect-ratio:600/340;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;touch-action:none;cursor:crosshair"></canvas>
+      <div class="row tight" style="margin-top:7px">
+        <button class="primary" id="btnDrawAdd">Add drawing as a formation</button>
+        <button class="sm" id="btnDrawUndo">Undo line</button>
+        <button class="sm" id="btnDrawClear">Clear</button>
+      </div>
+      <div class="mini" style="margin-top:7px">Drones spread evenly along your lines. Uses the colour and altitude above.</div>
+    </div>
+  </section>
+
+  <section data-menu="edit">
+    <header>Picked drones <span class="mini" id="pickInfo">click drones in the 3D view</span></header>
+    <div class="inner">
+      <div class="g3">
+        <div><label for="pkE">East (m)</label><input id="pkE" type="number" value="0" step="0.5"></div>
+        <div><label for="pkN">North (m)</label><input id="pkN" type="number" value="0" step="0.5"></div>
+        <div><label for="pkU">Up (m)</label><input id="pkU" type="number" value="0" step="0.5"></div>
+      </div>
+      <div class="row tight" style="margin-top:7px">
+        <button class="sm" id="btnPickMove">Move picked</button>
+        <button class="sm" id="btnPickSwap">Swap two</button>
+        <button class="sm" id="btnPickClear">Clear pick</button>
+      </div>
+      <div class="row tight" style="margin-top:7px;align-items:center">
+        <input type="color" id="pkColor" value="#ff3355" aria-label="Paint colour" style="width:44px;height:30px;padding:0">
+        <button class="sm" id="btnPickPaint">Paint picked</button>
+      </div>
+      <label class="row tight" style="margin-top:8px;gap:6px">
+        <input type="checkbox" id="keepOrder" style="width:auto"> Lock which drone flies where in this formation
+      </label>
+      <div class="mini" style="margin-top:6px">Click a drone to pick it, Shift+click to pick more.
+        Pick while the formation is held. Swapping locks the order; the safety check still applies.</div>
+    </div>
+  </section>
+
+  <section data-menu="edit">
+    <header>Move, turn &amp; scale <span class="mini" id="tfTarget"></span></header>
+    <div class="inner">
+      <div class="g3">
+        <div><label for="tfE">East (m)</label><input id="tfE" type="number" value="0" step="1"></div>
+        <div><label for="tfN">North (m)</label><input id="tfN" type="number" value="0" step="1"></div>
+        <div><label for="tfU">Up (m)</label><input id="tfU" type="number" value="0" step="1"></div>
+      </div>
+      <div class="g3">
+        <div><label for="tfTurn">Turn (°)</label><input id="tfTurn" type="number" value="0" step="15"></div>
+        <div><label for="tfTilt">Tilt (°)</label><input id="tfTilt" type="number" value="0" step="5"></div>
+        <div><label for="tfScale">Scale (×)</label><input id="tfScale" type="number" value="1" step="0.1" min="0.05"></div>
+      </div>
+      <button class="sm" id="btnTransform" style="margin-top:7px">Apply to formation</button>
+      <div class="mini" style="margin-top:7px">Changes the formation once, about its centre. Undo with Ctrl+Z.</div>
+    </div>
+  </section>
+
+  <section data-menu="edit">
+    <header>Motion <span class="mini" id="mvTarget"></span></header>
+    <div class="inner">
+      <div class="g3">
+        <div><label for="mvSpin">Spin (°)</label><input id="mvSpin" type="number" value="0" step="15"></div>
+        <div><label for="mvGrow">Grow (×)</label><input id="mvGrow" type="number" value="1" step="0.1" min="0.2" max="5"></div>
+        <div></div>
+      </div>
+      <div class="g3">
+        <div><label for="mvE">Move east (m)</label><input id="mvE" type="number" value="0" step="1"></div>
+        <div><label for="mvN">Move north (m)</label><input id="mvN" type="number" value="0" step="1"></div>
+        <div><label for="mvU">Move up (m)</label><input id="mvU" type="number" value="0" step="1"></div>
+      </div>
+      <div class="row tight" style="margin-top:7px">
+        <button class="sm" id="btnMotion">Apply motion</button>
+        <button class="sm" id="btnStill">Hold still</button>
+      </div>
+      <div class="mini" style="margin-top:7px">
+        The formation moves while it is held, starting and ending at rest.
+        Prepare lengthens the hold if the move would be too fast.
+      </div>
+    </div>
+  </section>
+
+  <section data-menu="lights">
+    <header>Pyro &amp; yaw <span class="mini" id="pyTarget"></span></header>
+    <div class="inner">
+      <div class="g3">
+        <div><label>At (s into hold)</label><input id="pyAt" type="number" value="2" step="0.5"></div>
+        <div><label>Heading (°)</label><input id="pyHead" type="number" value="90" step="5"></div>
+        <div><label>Settle (s)</label><input id="pySettle" type="number" value="1" step="0.5"></div>
+      </div>
+      <label>Drones (blank = all)</label><input id="pyDrones" placeholder="0,1,2">
+      <label>Article</label><input id="pyDesc" value="10s Gold Gerb">
+      <div class="row tight" style="margin-top:7px">
+        <button class="sm" id="btnPyro">Add pyro</button>
+        <button class="sm" id="btnYaw">Set yaw to heading</button>
+      </div>
+      <div class="mini" style="margin-top:7px">
+        Pyro cannot be recalled. It is checked for altitude, extra separation,
+        a defined heading and settle time.
+      </div>
+    </div>
+  </section>
+
+  <section data-menu="import">
+    <header>Logo &amp; text</header>
+    <div class="inner">
+      <div class="drop" id="drop">
+        Drop a logo here, or click to choose
+        <div class="mini" style="margin-top:3px">PNG, JPEG, GIF, BMP, WEBP</div>
+      </div>
+      <input type="file" id="assetFile" accept="image/*" style="display:none">
+      <div id="assetList"></div>
+      <div class="row tight" style="margin-top:7px">
+        <select id="picView" aria-label="Picture direction" style="width:auto">
+          <option value="front">as the crowd sees it</option><option value="top">seen from above</option>
+        </select>
+        <button class="sm" id="btnPicture">Colour selected formation from picture</button>
+      </div>
+
+      <div id="artworkBox" style="display:none">
+        <img id="maskPreview" alt="mask preview">
+        <div class="mini" id="maskNote" style="margin-top:5px"></div>
+        <label>Threshold <span class="mono" id="thrVal"></span></label>
+        <input id="thr" type="range" min="0" max="255" value="128">
+        <label style="margin-top:4px">
+          <input type="checkbox" id="thrInvert"> invert (dark subject on light)
+        </label>
+      </div>
+
+      <label>Or render text</label>
+      <input id="artText" placeholder="HAPPY NEW YEAR">
+
+      <div class="g2">
+        <div><label>Width (m)</label><input id="artWidth" type="number" value="90"></div>
+        <div><label>Altitude (m)</label><input id="artAlt" type="number" value="55"></div>
+      </div>
+      <div class="g2">
+        <div><label>Colour</label><input id="artColor" type="color" value="#ffffff"></div>
+        <div><label>Hold (s)</label><input id="artHold" type="number" value="6"></div>
+      </div>
+      <label>Name</label><input id="artName" value="logo">
+      <button class="primary" id="btnArtwork" style="margin-top:8px">Add artwork</button>
+    </div>
+  </section>
+
+  <section data-menu="ai">
+    <header>AI assistant</header>
+    <div class="inner">
+      <label>Describe the show</label>
+      <textarea id="aiDesc" rows="2"
+        placeholder="something romantic for a wedding, with a heart and a star"></textarea>
+      <div class="g2" style="margin-top:6px">
+        <div><label>Drones</label><input id="aiCount" type="number" value="100"></div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="primary" id="btnCompose">Draft it</button></div>
+      </div>
+      <div class="mini" id="aiNote" style="margin-top:7px">
+        Produces a storyboard for review. It is not flyable until it has been
+        prepared and has passed the safety engine.
+      </div>
+      <label style="margin-top:10px">Add a shape from words</label>
+      <input id="aiShape" placeholder="a dolphin jumping" maxlength="200">
+      <div class="g2" style="margin-top:6px">
+        <div><label>Colour</label><input id="aiShapeColor" type="color" value="#40c8ff"></div>
+        <div style="display:flex;align-items:flex-end">
+          <button id="btnAiShape">Add shape</button></div>
+      </div>
+      <label style="margin-top:10px">Help with the open show</label>
+      <div class="g2">
+        <button id="btnAiFix" title="Change the design until it passes the safety checks">Fix it for me</button>
+        <div style="display:flex;gap:4px">
+          <select id="aiBeats" title="Land a new formation every this many beats">
+            <option value="2">2 beats</option><option value="4" selected>4 beats</option>
+            <option value="8">8 beats</option><option value="16">16 beats</option></select>
+          <button id="btnAiMusic" title="Retime the formations to land on the song's beat">Match music</button>
+        </div>
+      </div>
+      <div class="mini" id="aiStatus" style="margin-top:7px"></div>
+      <label style="margin-top:10px">Claude key
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener"
+          style="margin-left:6px">get one</a></label>
+      <input id="aiKey" type="password" autocomplete="off" spellcheck="false"
+        placeholder="paste your key, it starts with sk-ant-">
+      <div style="display:flex;gap:4px;margin-top:6px">
+        <button class="primary" id="btnAiKey" style="flex:1">Save key</button>
+        <button id="btnAiKeyDel" title="Forget the saved key">Remove</button>
+      </div>
+    </div>
+  </section>
+
+  <section data-menu="ai">
+    <header>Voice <span class="mini" id="voiceState">idle</span></header>
+    <div class="inner">
+      <div class="row tight">
+        <button id="btnMic2">Start listening</button>
+        <button id="btnStandby" title="Microphone on, but only the wake phrase is acted on">Standby</button>
+      </div>
+      <div class="mini" style="margin-top:6px">
+        Stays on until you stop it. Say <b>"go to sleep"</b> to stand by,
+        <b>"Sky Shine, wake up"</b> to listen again, <b>"voice off"</b> to
+        switch the microphone off. In Chrome and Edge the browser's speech
+        service hears the microphone whenever it is on, standby included.
+      </div>
+      <label>Or type a command</label>
+      <input id="voiceText" placeholder="add a blue sphere at 60 metres">
+      <div class="mini" style="margin-top:7px">
+        Arming, starting and disarming are <b>never</b> available by voice —
+        a microphone hears bystanders, radios and the show audio.
+      </div>
+      <div class="chips" id="voiceChips"></div>
+      <div id="voiceLog" style="margin-top:9px"></div>
+    </div>
+  </section>
+
+  <section data-menu="check">
+    <header>Safety &amp; export</header>
+    <div class="inner">
+      <div class="row tight">
+        <button class="sm" id="btnFence">Auto geofence</button>
+        <button class="sm" id="btnClosest">Closest pairs</button>
+      </div>
+      <div class="row tight" style="margin-top:5px">
+        <button class="sm" id="btnReport">Print report</button>
+        <button class="sm" id="btnMission" title="Build and sign the upload bundle">Mission</button>
+        <button class="sm" id="btnMissionVerify" title="Check the built bundle's signature">Verify</button>
+      </div>
+      <div class="row tight" style="margin-top:5px">
+        <button class="sm" id="btnVviz">.vviz</button>
+        <button class="sm" id="btnCsv">CSV</button>
+        <button class="sm" id="btnSkyc" title="Skybrush, experimental">.skyc (beta)</button>
+        <button class="sm" id="btnRecord" title="Play the show from the start and save it as a video">Record video</button>
+      </div>
+    </div>
+  </section>
+  
+
+  <section data-menu="fleet">
+    <header>Airframes <span class="mini" id="regPill"></span></header>
+    <div class="inner">
+      <div id="regSummary" class="mini">No airframes registered.</div>
+      <details style="margin-top:6px"><summary>Register a batch</summary>
+        <div class="g3">
+          <div><label>Count</label><input id="regCount" type="number" value="20"></div>
+          <div><label>Prefix</label><input id="regPrefix" value="DD"></div>
+          <div><label>First sysid</label><input id="regSysid" type="number" value="1"></div>
+        </div>
+        <label>Model</label><input id="regModel" placeholder="SS-X1">
+        <button class="sm" id="btnRegBulk" style="margin-top:6px">Register</button>
+      </details>
+      <div class="row tight" style="margin-top:7px">
+        <button class="sm" id="btnAssign">Assign to open show</button>
+        <button class="sm" id="btnRegRefresh">Refresh</button>
+      </div>
+      <div class="row tight" style="margin-top:6px">
+        <button class="sm" id="btnRegExport" title="Download every airframe as a spreadsheet">Export CSV</button>
+        <button class="sm" id="btnRegImport" title="Add or update airframes from an edited export">Import CSV</button>
+        <input type="file" id="regFile" accept=".csv,text/csv" hidden>
+      </div>
+      <div id="assignNote" class="mini" style="margin-top:6px"></div>
+      <details style="margin-top:6px"><summary>Airframe list</summary>
+        <div class="scroll"><table id="regTable"></table></div>
+      </details>
+    </div>
+  </section>
+
+  <section data-menu="fleet">
+    <header>Link</header>
+    <div class="inner">
+      <label>Driver</label>
+      <select id="driver">
+        <option value="simulator" selected>Simulator — no hardware, no MAVLink</option>
+        <option value="sitl">SITL — virtual aircraft, real MAVLink</option>
+        <option value="sitl-guided">SITL — streamed setpoints</option>
+        <option value="mavlink-native">MAVLink — onboard show mode</option>
+        <option value="mavlink-guided">MAVLink — streamed setpoints</option>
+      </select>
+      <div id="endpointBox" style="display:none">
+        <label>Endpoints, one per drone</label>
+        <textarea id="endpoints" rows="3" placeholder="udpin:0.0.0.0:14551&#10;udpin:0.0.0.0:14552"></textarea>
+      </div>
+      <label class="row tight" style="margin-top:6px;gap:6px">
+        <input type="checkbox" id="linkSigned" style="width:auto">
+        Sign the MAVLink link (drops unsigned messages)
+      </label>
+      <button class="sm" id="btnProvision" style="margin-top:4px"
+        title="Send link.key to every connected aircraft. The key travels in the clear: bench or USB only.">Load signing key onto aircraft</button>
+      <details style="margin-top:6px"><summary>Inject faults</summary>
+        <div class="g2">
+          <div><label>Wind E,N,U (m/s)</label><input id="fxWind" value="0,0,0"></div>
+          <div><label>Noise σ (m)</label><input id="fxNoise" type="number" value="0.03" step="0.01"></div>
+        </div>
+        <label>Link loss — drone:second</label><input id="fxLink" placeholder="3:40">
+        <label>Weak battery — drone:percent</label><input id="fxBatt" placeholder="7:55">
+        <label>GNSS degraded — drone:second</label><input id="fxGps" placeholder="11:60">
+        <label>Drift — drone:m/s</label><input id="fxDrift" placeholder="5:0.08">
+        <label>Clock error — drone:seconds (SITL)</label><input id="fxClock" placeholder="2:0.4">
+      </details>
+      <button class="primary" id="btnLoad" style="margin-top:8px">Load onto fleet</button>
+    </div>
+  </section>
+
+  <section data-menu="fly">
+    <header>Launch sequence</header>
+    <div class="inner" style="display:flex;gap:8px;align-items:center;padding-bottom:0">
+      <div class="mini" id="approval" style="flex:1">Open a show to see its approval.</div>
+      <button class="sm" id="btnApprove">Approve</button>
+    </div>
+    <div class="inner" id="stepper">
+      <div class="step" data-step="validate" data-state="blocked">
+        <div class="n">1</div><div class="lbl">Validate<div class="sub">safety engine</div></div>
+        <button class="sm" id="btnOpsValidate">Run</button>
+      </div>
+      <div class="step" data-step="upload" data-state="blocked">
+        <div class="n">2</div><div class="lbl">Upload plans<div class="sub">checksummed</div></div>
+        <button class="sm" id="btnUpload">Send</button>
+      </div>
+      <div class="step" data-step="arm" data-state="blocked">
+        <div class="n">3</div><div class="lbl">Arm fleet<div class="sub">after preflight</div></div>
+        <button class="sm" id="btnArm">Arm</button>
+      </div>
+      <div class="step" data-step="start" data-state="blocked">
+        <div class="n">4</div><div class="lbl">Start
+          <div class="sub">lead-in <input id="leadIn" type="number" value="8"
+            style="width:46px;padding:1px 4px;font-size:11px;display:inline-block"> s</div></div>
+        <button class="sm go" id="btnStart">Go</button>
+      </div>
+    </div>
+  </section>
+
+  <section data-menu="fly">
+    <header>Preflight <button class="sm ghost" id="btnPreflight">Re-run</button></header>
+    <div class="inner"><div id="checks" class="mini">Load a show to run preflight.</div></div>
+  </section>
+
+  <section data-menu="fly">
+    <header>In flight</header>
+    <div class="inner">
+      <div class="row tight">
+        <button class="sm" id="btnSuspend">Suspend</button>
+        <button class="sm" id="btnUnsuspend">Resume</button>
+      </div>
+      <button class="danger" id="btnCrth" style="margin-top:7px">Collective return home</button>
+      <div class="mini" style="margin:6px 0 9px">
+        One deconflicted plan for the whole fleet, verified before it flies.
+        Falls back to holding if no safe return exists.
+      </div>
+      <div class="g3">
+        <button class="sm danger" id="btnHold">Hold</button>
+        <button class="sm danger" id="btnRth">RTL</button>
+        <button class="sm danger" id="btnLand">Land</button>
+      </div>
+      <button class="sm" id="btnDisarm" style="margin-top:5px">Disarm (on ground only)</button>
+      <div class="mini" style="margin-top:7px">
+        No motor cut. Stopping an airborne multirotor's motors makes it a
+        falling object. Per-drone RTL is <em>not</em> deconflicted — prefer
+        collective return.
+      </div>
+    </div>
+  </section>
+
+  <section data-menu="fleet">
+    <header>Fleet <span class="mini" id="fleetPill"></span></header>
+    <div class="inner">
+      <canvas id="matrix" height="90"></canvas>
+      <div class="mini" id="matrixNote" style="margin:5px 0 8px">
+        One cell per drone. Click a cell to inspect it.
+      </div>
+      <div id="fleetStats"></div>
+      <div id="alerts" style="margin-top:8px"></div>
+      <div id="groundTruth"></div>
+      <details style="margin-top:8px"><summary>Per-drone telemetry</summary>
+        <div class="scroll"><table id="droneTable"></table></div>
+      </details>
+      <div class="row tight" style="margin-top:8px">
+        <button class="sm" id="btnFinish">Finish &amp; credit fleet</button>
+        <button class="sm" id="btnPostShow">Post-show report</button>
+      </div>
+      <button class="sm" id="btnSaveLog" style="margin-top:5px">Save flight log</button>
+    </div>
+  </section>
+
+  <section data-menu="check" id="reportSection" style="display:none">
+    <header>Validation <button class="sm ghost" id="btnCloseReport">×</button></header>
+    <div class="inner"><div id="reportBody"></div></div>
+  </section>
+  </div>
+</aside>
+
+<!-- ================= STAGE ================= -->
+<main class="col stage">
+  <div class="bar-top">
+    <div class="tabs">
+      <button id="tabPreview" aria-selected="true">Preview</button>
+      <button id="tabLive" aria-selected="false">Live</button>
+    </div>
+    <div class="mini" id="viewTitle">no show open</div>
+    <div class="spacer"></div>
+    <div class="tabs">
+      <button id="view3d" aria-selected="true">3D</button>
+      <button id="view2d" aria-selected="false">Map</button>
+    </div>
+    <div class="tabs">
+      <button id="btnTop" class="sm">Top</button>
+      <button id="btnFront" class="sm">Crowd</button>
+      <button id="btnIso" class="sm">Iso</button>
+    </div>
+  </div>
+
+  <div id="view">
+    <canvas id="map"></canvas>
+    <div id="hud"></div>
+    <div id="legend">
+      <i style="background:#5ad1ff"></i>planned<br>
+      <i style="background:#59d1a0"></i>tracking<br>
+      <i style="background:#ffc24b"></i>drifting<br>
+      <i style="background:#ff5c6c"></i>off plan / lost
+    </div>
+    <div id="toast"></div>
+    <div id="voiceStrip"></div>
+    <button id="mic" title="Hold to talk, or click to toggle (shortcut: k)">&#127908;</button>
+  </div>
+
+  <div class="transport">
+    <canvas id="timeline"></canvas>
+    <div class="controls">
+      <button class="icon" id="btnPlay" title="Play / pause (space)">▶</button>
+      <button class="icon ghost" id="btnStart0" title="Jump to start (home)">⏮</button>
+      <span class="clock" id="clock">0.0 / 0.0 s</span>
+      <label class="mini" style="margin:0;white-space:nowrap">
+        <input type="checkbox" id="showTrails"> paths</label>
+      <label class="mini" style="margin:0;white-space:nowrap">
+        <input type="checkbox" id="showGhost" checked> planned vs actual</label>
+      <div class="spacer"></div>
+      <span class="mini" id="scrubHint">drag the timeline to scrub</span>
+    </div>
+  </div>
+</main>
+
+
+</div>
+
+<div id="login" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <form id="loginForm" autocomplete="on">
+    <h1 id="loginTitle" style="margin-bottom:4px">Sky<b>Shine</b></h1>
+    <div class="mini" style="margin-bottom:12px">Sign in to the ground station</div>
+    <label for="loginUser">Username</label>
+    <input id="loginUser" name="username" autocomplete="username" required>
+    <label for="loginPass">Password</label>
+    <input id="loginPass" name="password" type="password"
+           autocomplete="current-password" required>
+    <div id="loginErr" class="mini" role="alert"
+         style="color:var(--bad);min-height:18px;margin-top:6px"></div>
+    <button class="primary" id="loginBtn" type="submit" style="margin-top:4px">Sign in</button>
+  </form>
+</div>
+
+<dialog id="modal">
+  <div class="dh" id="modalTitle"></div>
+  <div class="db" id="modalBody"></div>
+  <div style="padding:0 17px"><input id="modalInput" style="display:none"></div>
+  <div class="df" id="modalFoot"></div>
+</dialog>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================================================================== *
+ * The browser animates the show from the same formation keyframes and
+ * the same shared easing the engine and the aircraft use. A 500 drone
+ * show is a few thousand numbers this way rather than the hundred
+ * megabytes a sampled timeline would be, and the preview is the plan
+ * rather than a second interpolation of it.
+ * ================================================================== */
+
+const EASE = {
+  linear: t => t,
+  smoothstep: t => t*t*(3-2*t),
+  minjerk: t => t*t*t*(10-15*t+6*t*t),
+};
+
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.min(Math.max(v,a),b);
+
+async function api(path, opts={}) {
+  const res = await fetch(path, {
+    headers:{'content-type':'application/json'}, ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let data=null; try{ data = await res.json(); }catch{}
+  if(res.status === 401 && !path.startsWith('/api/auth/')) showLogin();
+  if(!res.ok){
+    const d = data && data.detail !== undefined ? data.detail : res.statusText;
+    const err = new Error(typeof d==='string' ? d : (d && d.detail) || JSON.stringify(d,null,1));
+    err.payload = d; throw err;
+  }
+  return data;
+}
+
+
+/* ============================== menu ============================== *
+ * ERP layout: one menu item at a time. Every panel keeps its own ids and
+ * handlers; the menu only hides the panels that belong to other items.
+ * ================================================================== */
+const MENUS = {shows:{title:'My shows',hint:'Open a show, or start a new one.'},shapes:{title:'Shapes',hint:'Add shapes, then put them in the order they fly.'},edit:{title:'Edit drones',hint:'Click drones in the 3D view, then move, turn, spin or recolour them.'},import:{title:'Import',hint:'Bring in a 3D model, a drawing, a logo or text.'},lights:{title:'Lights',hint:'Colours, light effects and pyro.'},music:{title:'Music',hint:'Add the song and set the beat.'},ai:{title:'AI helper',hint:'Describe a show, fix problems, match the music, or talk to it.'},site:{title:'Venue & limits',hint:'Where you fly, how high, and where drones must not go.'},check:{title:'Check & export',hint:'Make it safe to fly, then save it for the drones.'},fleet:{title:'Drones',hint:'Your aircraft and the radio link to them.'},fly:{title:'Fly',hint:'Preflight checks, launch, and the show in the air.'}};
+function showMenu(key){
+  if(!MENUS[key]) key = 'shows';
+  document.querySelectorAll('section[data-menu]').forEach(sec=>
+    sec.classList.toggle('offmenu', sec.dataset.menu !== key));
+  document.querySelectorAll('.navlist button').forEach(b=>
+    b.toggleAttribute('aria-current', false) || (b.dataset.go===key && b.setAttribute('aria-current','page')));
+  $('menuTitle').textContent = MENUS[key].title;
+  $('menuHint').textContent = MENUS[key].hint;
+  document.querySelector('.col.left .colbody').scrollTop = 0;
+  try{ localStorage.setItem('skyshine.menu', key); }catch{}
+}
+document.querySelectorAll('.navlist button').forEach(b=> b.onclick = ()=> showMenu(b.dataset.go));
+{ let start='shows'; try{ start = localStorage.getItem('skyshine.menu') || 'shows'; }catch{}
+  showMenu(start); }
+
+function toast(text, kind='ok', extra=''){
+  const el=document.createElement('div'); el.className=`msg ${kind}`;
+  el.textContent=text;
+  if(extra){ const p=document.createElement('div'); p.className='mini';
+    p.style.marginTop='4px'; p.style.whiteSpace='pre-line'; p.textContent=extra; el.appendChild(p); }
+  $('toast').appendChild(el);
+  setTimeout(()=>el.remove(), kind==='ok'?3800:9000);
+}
+
+/* Replaces confirm()/prompt(): those block the event loop, cannot be
+   styled, and in some embedded webviews never appear at all - which is
+   how an "are you sure" silently became "no". */
+function ask({title, body='', input=null, confirmLabel='Confirm', danger=false}){
+  return new Promise(resolve=>{
+    $('modalTitle').textContent=title;
+    $('modalBody').textContent=body;
+    const inp=$('modalInput');
+    inp.style.display = input===null ? 'none' : 'block';
+    inp.value=''; inp.placeholder = input || '';
+    const foot=$('modalFoot'); foot.innerHTML='';
+    const cancel=document.createElement('button'); cancel.textContent='Cancel';
+    const ok=document.createElement('button'); ok.textContent=confirmLabel;
+    ok.className = danger ? 'danger' : 'primary';
+    foot.append(cancel, ok);
+    const close=v=>{ $('modal').close(); resolve(v); };
+    cancel.onclick=()=>close(null);
+    ok.onclick=()=>close(input===null ? true : (inp.value.trim() || null));
+    $('modal').showModal();
+    (input===null ? ok : inp).focus();
+  });
+}
+
+const state = {
+  showName:null, plan:null, detail:null, tab:'preview', mode:'3d',
+  time:0, playing:false, lastFrame:0, live:null,
+  shapes:[], effects:[], selected:0, trails:false, ghost:true,
+  pickedDrone:null,
+};
+
+/* ---------------------------- 3D scene --------------------------- */
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50,1,0.5,6000);
+camera.position.set(180,-250,140); camera.up.set(0,0,1);
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+$('view').insertBefore(renderer.domElement, $('map'));
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping=true; controls.target.set(0,0,45);
+
+let grid = new THREE.GridHelper(600,60);
+grid.rotateX(Math.PI/2); scene.add(grid);
+scene.add(new THREE.AxesHelper(26));
+
+function applyTheme(){
+  const light = document.documentElement.dataset.theme === 'light';
+  scene.background = new THREE.Color(light ? 0xeef1f6 : 0x05070b);
+  scene.fog = new THREE.Fog(light ? 0xeef1f6 : 0x05070b, 500, 1800);
+  grid.material.color.set(light ? 0xc3ccdb : 0x1b2330);
+}
+applyTheme();
+
+function makePoints(size, opacity, additive=true){
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3),3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(3),3));
+  const m=new THREE.PointsMaterial({size, sizeAttenuation:true, vertexColors:true,
+    transparent:true, opacity, depthWrite:false,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending});
+  const p=new THREE.Points(g,m); p.frustumCulled=false; scene.add(p); return p;
+}
+const plannedPts  = makePoints(3.4,0.95);
+const pickedPts   = makePoints(9,1,false);
+const pick = { list:[], lastPos:null, lastIndex:-1 };
+const measuredPts = makePoints(5.4,0.55);
+
+const trailGeom=new THREE.BufferGeometry();
+const trails=new THREE.LineSegments(trailGeom,
+  new THREE.LineBasicMaterial({color:0x1d4e63, transparent:true, opacity:0.45}));
+trails.frustumCulled=false; trails.visible=false; scene.add(trails);
+
+let fenceMesh=null;
+function drawFence(poly, ceiling){
+  if(fenceMesh){ scene.remove(fenceMesh); fenceMesh.geometry.dispose(); fenceMesh=null; }
+  if(!poly||poly.length<3) return;
+  const pts=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i], b=poly[(i+1)%poly.length];
+    pts.push(new THREE.Vector3(a[0],a[1],0), new THREE.Vector3(a[0],a[1],ceiling));
+    pts.push(new THREE.Vector3(a[0],a[1],ceiling), new THREE.Vector3(b[0],b[1],ceiling));
+    pts.push(new THREE.Vector3(a[0],a[1],0), new THREE.Vector3(b[0],b[1],0));
+  }
+  fenceMesh=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0x7a2a36}));
+  scene.add(fenceMesh);
+}
+
+function resize(){
+  const el=$('view'), w=el.clientWidth, h=Math.max(el.clientHeight,1);
+  camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h);
+  for(const c of [$('map')]){ c.width=w*devicePixelRatio; c.height=h*devicePixelRatio;
+    c.style.width=w+'px'; c.style.height=h+'px'; }
+  const tl=$('timeline');
+  tl.width=tl.clientWidth*devicePixelRatio; tl.height=62*devicePixelRatio;
+  const mx=$('matrix');
+  mx.width=mx.clientWidth*devicePixelRatio; mx.height=90*devicePixelRatio;
+}
+new ResizeObserver(resize).observe($('view'));
+new ResizeObserver(resize).observe($('timeline'));
+
+/* ------------------------- plan evaluation ----------------------- */
+/* Same motion as show.moved() in Python: about the centre, eased minjerk. */
+function movedPoints(f, s){
+  const m=f.motion, p=f.points, n=p.length;
+  if(!m || s<=0) return p;
+  if(f._end && s>=1) return f._end;
+  let cx=0, cy=0, cz=0;
+  for(const q of p){ cx+=q[0]; cy+=q[1]; cz+=q[2]; }
+  cx/=n; cy/=n; cz/=n;
+  const th=m.spin*s*Math.PI/180, cs=Math.cos(th), sn=Math.sin(th), k=1+(m.grow-1)*s;
+  const out=p.map(q=>{ const dx=(q[0]-cx)*k, dy=(q[1]-cy)*k, dz=(q[2]-cz)*k;
+    return [cx+dx*cs-dy*sn+m.move[0]*s, cy+dx*sn+dy*cs+m.move[1]*s, cz+dz+m.move[2]*s]; });
+  if(s>=1) f._end=out;
+  return out;
+}
+function holdPose(f, local){
+  if(!f.motion) return f.points;
+  return movedPoints(f, EASE.minjerk(clamp((local-f.transition)/f.hold,0,1)));
+}
+
+function evaluate(plan, t){
+  const f=plan.formations, n=plan.drone_count;
+  const pos=new Float32Array(n*3), col=new Float32Array(n*3);
+  if(!f.length) return {pos,col};
+  let k=0; for(let i=0;i<f.length;i++){ if(t>=f[i].t_start) k=i; else break; }
+  const cur=f[k], prev=f[Math.max(k-1,0)], local=t-cur.t_start;
+  let s=1, from=prev, to=cur;
+  let A=prev.motion ? movedPoints(prev,1) : prev.points, B=cur.points;
+  if(k>0 && cur.transition>0 && local<cur.transition){
+    s=(EASE[cur.easing]||EASE.minjerk)(clamp(local/cur.transition,0,1));
+  } else { from=cur; A=B=holdPose(cur, k===0 ? local+cur.transition : local); s=1; }
+  for(let d=0; d<n; d++){
+    const a=A[d], b=B[d];
+    pos[d*3]=a[0]+(b[0]-a[0])*s; pos[d*3+1]=a[1]+(b[1]-a[1])*s; pos[d*3+2]=a[2]+(b[2]-a[2])*s;
+    const ca=from.colors[d], cb=to.colors[d];
+    col[d*3]=(ca[0]+(cb[0]-ca[0])*s)/255;
+    col[d*3+1]=(ca[1]+(cb[1]-ca[1])*s)/255;
+    col[d*3+2]=(ca[2]+(cb[2]-ca[2])*s)/255;
+  }
+  return {pos,col,formation:cur.name,index:k};
+}
+
+function setPoints(obj,pos,col){
+  const g=obj.geometry;
+  if(g.attributes.position.count*3!==pos.length){
+    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  } else { g.attributes.position.array.set(pos); g.attributes.color.array.set(col); }
+  g.attributes.position.needsUpdate=true; g.attributes.color.needsUpdate=true;
+  g.computeBoundingSphere();
+}
+
+function buildTrails(plan){
+  const segs=[];
+  for(let i=1;i<plan.formations.length;i++){
+    const a=plan.formations[i-1], b=plan.formations[i];
+    if(b.transition<=0) continue;
+    const A=a.motion ? movedPoints(a,1) : a.points;
+    for(let d=0; d<plan.drone_count; d++)
+      segs.push(A[d][0],A[d][1],A[d][2],
+                b.points[d][0],b.points[d][1],b.points[d][2]);
+  }
+  trailGeom.setAttribute('position',new THREE.BufferAttribute(new Float32Array(segs),3));
+  trailGeom.attributes.position.needsUpdate=true;
+}
+
+/* ----------------------------- 2D map ---------------------------- */
+function drawMap(pos, col, n){
+  const c=$('map'), g=c.getContext('2d');
+  const W=c.width, H=c.height, S=devicePixelRatio;
+  g.clearRect(0,0,W,H);
+  const css=getComputedStyle(document.documentElement);
+  g.fillStyle=css.getPropertyValue('--bg'); g.fillRect(0,0,W,H);
+
+  let maxR=60;
+  for(let d=0; d<n; d++) maxR=Math.max(maxR, Math.hypot(pos[d*3],pos[d*3+1]));
+  const fence=state.detail?.limits?.geofence||[];
+  for(const v of fence) maxR=Math.max(maxR, Math.hypot(v[0],v[1]));
+  const scale=Math.min(W,H)/(maxR*2.3), cx=W/2, cy=H/2;
+  const X=x=>cx+x*scale, Y=y=>cy-y*scale;
+
+  // range rings every 25 m, so the operator can read distances off the map
+  g.strokeStyle=css.getPropertyValue('--line'); g.lineWidth=S;
+  g.fillStyle=css.getPropertyValue('--faint'); g.font=`${10*S}px ${css.getPropertyValue('--mono')}`;
+  for(let r=25;r<=maxR*1.2;r+=25){
+    g.beginPath(); g.arc(cx,cy,r*scale,0,Math.PI*2); g.stroke();
+    g.fillText(`${r} m`, cx+4*S, Y(r)-4*S);
+  }
+  g.beginPath(); g.moveTo(X(-maxR),cy); g.lineTo(X(maxR),cy);
+  g.moveTo(cx,Y(-maxR)); g.lineTo(cx,Y(maxR)); g.stroke();
+  g.fillText('N', cx+4*S, Y(maxR*1.05));
+
+  if(fence.length>2){
+    g.strokeStyle='#7a2a36'; g.lineWidth=2*S; g.beginPath();
+    fence.forEach((v,i)=> i ? g.lineTo(X(v[0]),Y(v[1])) : g.moveTo(X(v[0]),Y(v[1])));
+    g.closePath(); g.stroke();
+  }
+  for(let d=0; d<n; d++){
+    g.fillStyle=`rgb(${col[d*3]*255|0},${col[d*3+1]*255|0},${col[d*3+2]*255|0})`;
+    g.beginPath(); g.arc(X(pos[d*3]),Y(pos[d*3+1]),2.6*S,0,Math.PI*2); g.fill();
+  }
+  const live=state.live;
+  if(state.tab==='live' && live?.drones){
+    for(const dr of live.drones){
+      if(!dr.position) continue;
+      g.fillStyle = !dr.connected||dr.deviation>3 ? '#ff5c6c'
+                  : dr.deviation>1.5 ? '#ffc24b' : '#59d1a0';
+      g.beginPath(); g.arc(X(dr.position[0]),Y(dr.position[1]),4*S,0,Math.PI*2); g.fill();
+    }
+  }
+}
+
+/* ---------------------------- timeline --------------------------- */
+function drawTimeline(){
+  const c=$('timeline'), g=c.getContext('2d');
+  const W=c.width, H=c.height, S=devicePixelRatio;
+  const css=getComputedStyle(document.documentElement);
+  g.clearRect(0,0,W,H);
+  g.fillStyle=css.getPropertyValue('--panel'); g.fillRect(0,0,W,H);
+  const plan=state.plan;
+  if(!plan||!plan.duration){
+    g.fillStyle=css.getPropertyValue('--faint');
+    g.font=`${11*S}px system-ui`;
+    g.fillText('open a show to see its timeline', 12*S, H/2);
+    return;
+  }
+  const dur=plan.duration, X=t=>(t/dur)*W;
+  const rowY=10*S, rowH=24*S;
+
+  // formation blocks: transition then hold, so the designer can see where
+  // the fleet is moving and where it is posed
+  plan.formations.forEach((f,i)=>{
+    const x0=X(f.t_start), xT=X(f.t_start+f.transition), x1=X(f.t_start+f.transition+f.hold);
+    g.fillStyle = i===state.selected ? css.getPropertyValue('--accent-dim')
+                                     : css.getPropertyValue('--panel2');
+    g.fillRect(x0,rowY,Math.max(x1-x0,1),rowH);
+    g.fillStyle=css.getPropertyValue('--line2');
+    g.fillRect(x0,rowY,Math.max(xT-x0,1),rowH);         // transition, darker
+    g.strokeStyle = i===state.selected ? css.getPropertyValue('--accent')
+                                       : css.getPropertyValue('--line');
+    g.lineWidth=S; g.strokeRect(x0+0.5*S,rowY+0.5*S,Math.max(x1-x0-S,1),rowH-S);
+    if(x1-x0>34*S){
+      g.fillStyle=css.getPropertyValue('--ink');
+      g.font=`${10.5*S}px system-ui`;
+      g.save(); g.beginPath(); g.rect(x0,rowY,x1-x0,rowH); g.clip();
+      g.fillText(f.name, x0+4*S, rowY+15*S); g.restore();
+    }
+  });
+
+  // beat grid under the blocks
+  const beats=state.detail?.music?.bpm ? 60/state.detail.music.bpm : 0;
+  if(beats>0 && beats*W/dur > 3*S){
+    g.strokeStyle=css.getPropertyValue('--line'); g.lineWidth=S;
+    let n=0;
+    for(let t=(state.detail.music.beat_phase||0); t<=dur; t+=beats, n++){
+      g.globalAlpha = n%4===0 ? 0.9 : 0.35;
+      g.beginPath(); g.moveTo(X(t), rowY+rowH); g.lineTo(X(t), rowY+rowH+6*S); g.stroke();
+    }
+    g.globalAlpha=1;
+  }
+
+  // the song's waveform, placed where it plays in show time
+  if(song.peaks && song.buffer){
+    const top=rowY+rowH+8*S, bottom=H-3*S, mid=(top+bottom)/2, half=(bottom-top)/2;
+    const off=songOffset(), sd=song.buffer.duration, P=song.peaks.length;
+    g.fillStyle=css.getPropertyValue('--accent'); g.globalAlpha=0.55;
+    for(let x=0;x<W;x+=S){
+      // the loudest moment in this pixel's slice of time, not one sample of it
+      const s0=(x/W)*dur+off, s1=((x+S)/W)*dur+off;
+      if(s1<0 || s0>=sd) continue;
+      const b0=Math.max(0, Math.floor(s0/sd*P)), b1=Math.min(P, Math.max(b0+1, Math.ceil(s1/sd*P)));
+      let m=0; for(let b=b0;b<b1;b++) if(song.peaks[b]>m) m=song.peaks[b];
+      const a=m*half;
+      g.fillRect(x, mid-a, S, Math.max(2*a, S));
+    }
+    g.globalAlpha=1;
+  }
+
+  // pyro markers and cues
+  (state.pyro||[]).forEach(p=>{
+    g.fillStyle=css.getPropertyValue('--pyro');
+    g.beginPath();
+    g.moveTo(X(p.t), H-16*S); g.lineTo(X(p.t)-4*S, H-8*S); g.lineTo(X(p.t)+4*S, H-8*S);
+    g.closePath(); g.fill();
+  });
+  (state.detail?.music?.cues||[]).forEach(([t,label])=>{
+    g.strokeStyle=css.getPropertyValue('--ok'); g.lineWidth=1.5*S;
+    g.beginPath(); g.moveTo(X(t),rowY); g.lineTo(X(t),H-6*S); g.stroke();
+    g.fillStyle=css.getPropertyValue('--ok'); g.font=`${9.5*S}px system-ui`;
+    g.fillText(label, X(t)+3*S, H-2*S);
+  });
+
+  // time ruler
+  g.fillStyle=css.getPropertyValue('--faint'); g.font=`${9.5*S}px ${css.getPropertyValue('--mono')}`;
+  const stepSec = dur>240?60 : dur>90?30 : dur>40?10 : 5;
+  for(let t=0;t<=dur;t+=stepSec){
+    g.fillRect(X(t),rowY+rowH+8*S,S,4*S);
+    g.fillText(`${t}`, X(t)+3*S, rowY+rowH+16*S);
+  }
+
+  // playhead
+  const px=X(clamp(state.time,0,dur));
+  g.strokeStyle=css.getPropertyValue('--accent'); g.lineWidth=1.5*S;
+  g.beginPath(); g.moveTo(px,0); g.lineTo(px,H); g.stroke();
+  g.fillStyle=css.getPropertyValue('--accent');
+  g.beginPath(); g.moveTo(px-4*S,0); g.lineTo(px+4*S,0); g.lineTo(px,7*S); g.closePath(); g.fill();
+}
+
+let scrubbing=false;
+function scrubTo(ev){
+  if(!state.plan) return;
+  const r=$('timeline').getBoundingClientRect();
+  state.time=clamp((ev.clientX-r.left)/r.width,0,1)*state.plan.duration;
+  setPlaying(false); updateClock();
+}
+$('timeline').addEventListener('pointerdown',e=>{ scrubbing=true;
+  $('timeline').setPointerCapture(e.pointerId); scrubTo(e); });
+$('timeline').addEventListener('pointermove',e=>{ if(scrubbing) scrubTo(e); });
+$('timeline').addEventListener('pointerup',e=>{ scrubbing=false;
+  $('timeline').releasePointerCapture(e.pointerId); });
+
+/* --------------------------- drone matrix ------------------------ */
+function drawMatrix(){
+  const c=$('matrix'), g=c.getContext('2d');
+  const W=c.width, H=c.height, S=devicePixelRatio;
+  const css=getComputedStyle(document.documentElement);
+  g.clearRect(0,0,W,H);
+  const live=state.live;
+  const n = live?.drone_count || state.detail?.drone_count || 0;
+  if(!n){ g.fillStyle=css.getPropertyValue('--faint'); g.font=`${11*S}px system-ui`;
+    g.fillText('no fleet loaded', 8*S, H/2); return; }
+
+  const cols=Math.ceil(Math.sqrt(n*W/H)), rows=Math.ceil(n/cols);
+  const cw=W/cols, ch=Math.min(H/rows, cw);
+  for(let i=0;i<n;i++){
+    const r=Math.floor(i/cols), col=i%cols;
+    const d=live?.drones?.[i];
+    let fill=css.getPropertyValue('--panel3');
+    if(d){
+      if(!d.connected) fill='#ff5c6c';
+      else if(d.faults?.length || d.battery_percent<20) fill='#ffc24b';
+      else if(d.deviation>3) fill='#ff5c6c';
+      else if(d.deviation>1.5) fill='#ffc24b';
+      else if(d.armed) fill='#35d08a';
+      else fill='#2e5f7a';
+    }
+    g.fillStyle=fill;
+    g.fillRect(col*cw+0.5*S, r*ch+0.5*S, cw-1.5*S, ch-1.5*S);
+    if(state.pickedDrone===i){
+      g.strokeStyle=css.getPropertyValue('--accent'); g.lineWidth=2*S;
+      g.strokeRect(col*cw+S, r*ch+S, cw-2*S, ch-2*S);
+    }
+  }
+}
+$('matrix').addEventListener('click',e=>{
+  const live=state.live; const n=live?.drone_count||0; if(!n) return;
+  const c=$('matrix'), r=c.getBoundingClientRect();
+  const cols=Math.ceil(Math.sqrt(n*c.width/c.height)), rows=Math.ceil(n/cols);
+  const cw=r.width/cols, ch=Math.min(r.height/rows, cw);
+  const i=Math.floor((e.clientY-r.top)/ch)*cols + Math.floor((e.clientX-r.left)/cw);
+  if(i<0||i>=n) return;
+  state.pickedDrone=i;
+  const d=live.drones[i];
+  $('matrixNote').innerHTML = d
+    ? `<b>drone ${i}</b> — ${d.connected?'online':'OFFLINE'}, ${d.mode},
+       alt ${d.altitude_agl.toFixed(1)} m, dev ${d.deviation.toFixed(2)} m,
+       bat ${d.battery_percent.toFixed(0)}%, gps ${d.gps_fix}/${d.satellites}
+       ${d.faults?.length?('<br>faults: '+d.faults.join('; ')):''}`
+    : `drone ${i}: no telemetry`;
+});
+
+/* ---------------------------- render loop ------------------------ */
+function renderFrame(){
+  let pos=null, col=null, n=0;
+  if(state.tab==='live' && state.live?.planned){
+    const L=state.live; n=L.planned.length;
+    pos=new Float32Array(n*3); col=new Float32Array(n*3);
+    for(let d=0; d<n; d++){
+      pos[d*3]=L.planned[d][0]; pos[d*3+1]=L.planned[d][1]; pos[d*3+2]=L.planned[d][2];
+      col[d*3]=L.colors[d][0]/255; col[d*3+1]=L.colors[d][1]/255; col[d*3+2]=L.colors[d][2]/255;
+    }
+    setPoints(plannedPts,pos,col);
+    const show = state.ghost ? (L.drones||[]).filter(d=>d.position) : [];
+    const mp=new Float32Array(show.length*3), mc=new Float32Array(show.length*3);
+    show.forEach((d,i)=>{
+      mp[i*3]=d.position[0]; mp[i*3+1]=d.position[1]; mp[i*3+2]=d.position[2];
+      const bad=!d.connected||d.deviation>3, warn=d.deviation>1.5;
+      mc[i*3]=bad?1:warn?1:0.35; mc[i*3+1]=bad?0.36:warn?0.76:0.82; mc[i*3+2]=bad?0.42:warn?0.29:0.63;
+    });
+    setPoints(measuredPts,mp,mc);
+    measuredPts.visible=show.length>0;
+    $('legend').style.display='block';
+    $('hud').innerHTML =
+      `<b>${L.show}</b><br>${L.drone_count} drones &middot; ${L.phase}` +
+      `<br>t <b>${L.show_time.toFixed(1)}</b> / ${L.duration.toFixed(1)} s` +
+      `<br>connected <b>${L.connected}</b> &middot; armed <b>${L.armed}</b>` +
+      `<br>max deviation <b>${L.max_deviation.toFixed(2)}</b> m`;
+  } else {
+    measuredPts.visible=false; $('legend').style.display='none';
+    if(!state.plan) return;
+    const e=evaluate(state.plan,state.time);
+    pos=e.pos; col=e.col; n=state.plan.drone_count;
+    setPoints(plannedPts,pos,col);
+    pick.lastPos=pos; pick.lastIndex=e.index;
+    const pp=new Float32Array(pick.list.length*3), pc=new Float32Array(pick.list.length*3).fill(1);
+    pick.list.forEach((d,k)=>{ pp[k*3]=pos[d*3]; pp[k*3+1]=pos[d*3+1]; pp[k*3+2]=pos[d*3+2]; });
+    setPoints(pickedPts,pp,pc); pickedPts.visible=pick.list.length>0;
+    $('hud').innerHTML =
+      `<b>${state.plan.name}</b><br>${n} drones` +
+      `<br>t <b>${state.time.toFixed(1)}</b> / ${state.plan.duration.toFixed(1)} s` +
+      `<br>phase <b>${e.formation||'-'}</b>` +
+      `<br>min sep limit ${state.plan.limits.min_separation.toFixed(2)} m` +
+      `<br>formation spacing ${state.plan.limits.formation_separation.toFixed(2)} m`;
+  }
+  if(state.mode==='2d' && pos) drawMap(pos,col,n);
+}
+
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = state.lastFrame ? (now-state.lastFrame)/1000 : 0;
+  state.lastFrame=now;
+  syncSong();
+  if(charts.data && charts.drawnAt!==state.time) drawCharts();
+  if(state.playing && state.plan && state.tab==='preview'){
+    state.time += dt;
+    if(state.time>=state.plan.duration){ state.time=state.plan.duration; setPlaying(false); }
+    updateClock();
+  }
+  controls.update();
+  renderFrame();
+  drawTimeline();
+  drawMatrix();
+  if(state.mode==='3d') renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+
+function setPlaying(on){ state.playing=on; $('btnPlay').textContent = on?'❚❚':'▶'; }
+function updateClock(){
+  const d = state.tab==='live' && state.live ? state.live.duration : (state.plan?.duration||0);
+  const t = state.tab==='live' && state.live ? state.live.show_time : state.time;
+  $('clock').textContent = `${t.toFixed(1)} / ${d.toFixed(1)} s`;
+}
+
+/* --------------------------- design side ------------------------- */
+async function refreshLibrary(){
+  const {shows} = await api('/api/design/shows');
+  const ul=$('showList'); ul.innerHTML='';
+  if(!shows.length){ ul.innerHTML='<li class="empty">No shows yet. Create one.</li>'; return; }
+  shows.forEach(s=>{
+    const li=document.createElement('li');
+    li.setAttribute('aria-selected', String(s.name===state.showName));
+    li.innerHTML=`<div class="t"><b>${s.name}</b>
+      <span class="mini mono">${s.drone_count}d</span></div>
+      <div class="mini">${s.formations} formation${s.formations===1?'':'s'}</div>`;
+    li.onclick=()=>openShow(s.name).catch(e=>toast(e.message,'bad'));
+    ul.appendChild(li);
+  });
+}
+
+async function loadCatalogues(){
+  const [shapes, effects] = await Promise.all([
+    api('/api/shapes'), api('/api/effects')
+  ]);
+  state.shapes=shapes.shapes; state.effects=effects.effects;
+  const ss=$('shape'); ss.innerHTML='';
+  shapes.shapes.forEach(s=>{ const o=document.createElement('option');
+    o.value=s.name; o.textContent=s.name; ss.appendChild(o); });
+  ss.value='ball'; renderShapeParams();
+  const es=$('effect'); es.innerHTML='';
+  effects.effects.forEach(e=>{ const o=document.createElement('option');
+    o.value=e.name; o.textContent=e.name; es.appendChild(o); });
+  es.value='chase'; renderEffectParams();
+}
+
+const HIDDEN_PARAMS=['upright','seed','iterations','resolution','font_path','vertices'];
+function renderParams(box, params, prefix){
+  box.innerHTML='';
+  params.forEach(p=>{
+    if(HIDDEN_PARAMS.includes(p.name)) return;
+    const wrap=document.createElement('div');
+    wrap.innerHTML=`<label>${p.name.replace(/_/g,' ')}</label>`;
+    const inp=document.createElement('input');
+    inp.dataset.param=p.name;
+    if(p.kind==='color' || (Array.isArray(p.default) && p.default.length===3)){
+      inp.type='color';
+      const d=Array.isArray(p.default)?p.default:[255,160,0];
+      inp.value='#'+d.map(v=>Number(v).toString(16).padStart(2,'0')).join('');
+      inp.dataset.type='color';
+    } else if(p.kind==='axis'){
+      const sel=document.createElement('select'); sel.dataset.param=p.name;
+      ['x','y','z','radial','radial_xy','index'].forEach(a=>{
+        const o=document.createElement('option'); o.value=a; o.textContent=a;
+        if(a===p.default) o.selected=true; sel.appendChild(o); });
+      wrap.appendChild(sel); box.appendChild(wrap); return;
+    } else if(typeof p.default==='boolean'){
+      inp.type='checkbox'; inp.checked=p.default; inp.style.width='auto';
+    } else if(typeof p.default==='number' || p.default===null){
+      inp.type='number'; inp.step='any';
+      if(p.default!==null) inp.value=p.default;
+    } else { inp.type='text'; inp.value=p.default ?? ''; }
+    wrap.appendChild(inp); box.appendChild(wrap);
+  });
+}
+const renderShapeParams = () =>
+  renderParams($('shapeParams'), (state.shapes.find(s=>s.name===$('shape').value)||{params:[]}).params);
+const renderEffectParams = () => {
+  const e=state.effects.find(x=>x.name===$('effect').value);
+  renderParams($('effectParams'), (e||{params:[]}).params);
+  $('fxNote').textContent = e?.doc || '';
+};
+
+function collect(boxId){
+  const out={};
+  $(boxId).querySelectorAll('[data-param]').forEach(el=>{
+    const k=el.dataset.param;
+    if(el.dataset.type==='color' || el.type==='color'){
+      out[k]=[parseInt(el.value.slice(1,3),16),parseInt(el.value.slice(3,5),16),
+              parseInt(el.value.slice(5,7),16)];
+    } else if(el.type==='checkbox'){ out[k]=el.checked; }
+    else if(el.type==='number'){ if(el.value!=='') out[k]=Number(el.value); }
+    else if(el.tagName==='SELECT'){ out[k]=el.value; }
+    else if(el.value!=='') out[k]=el.value;
+  });
+  return out;
+}
+
+async function openShow(name){
+  state.showName=name;
+  refreshApproval();
+  const [detail, plan] = await Promise.all([
+    api(`/api/design/shows/${encodeURIComponent(name)}`),
+    api(`/api/design/shows/${encodeURIComponent(name)}/plan`),
+  ]);
+  state.detail=detail; state.plan=plan; state.time=0; state.selected=0;
+  showLimits(detail.limits); drawZones(detail.limits.keep_out||[]); drawVenue(name, detail.venue||{});
+  // pyro markers for the timeline, in absolute show time
+  state.pyro=[];
+  let cursor=0;
+  detail.formations.forEach(f=>{
+    (f.pyro||[]).forEach(p=> state.pyro.push({t:cursor+f.transition+p.at, d:p.description}));
+    cursor+=f.transition+f.hold;
+  });
+
+  $('viewTitle').textContent=`${name} — ${detail.drone_count} drones, ${detail.duration}s`;
+  const c=detail.capacity_hint;
+  $('capacity').innerHTML=
+    `${detail.drone_count} drones at ${c.formation_separation_m} m need about
+     <b>${c.billboard_width_m} × ${c.billboard_height_m} m</b> of sky. ` +
+    (c.fits_under_ceiling
+      ? `<span style="color:var(--ok)">Fits under the ceiling.</span>`
+      : `<span style="color:var(--bad)">Taller than the ceiling — raise it, widen the
+         aspect, or fly fewer drones.</span>`);
+  $('mBpm').value=detail.music?.bpm ?? '';
+  $('mPhase').value=detail.music?.beat_phase ?? 0;
+  $('mPath').value=detail.music?.path ?? '';
+  $('mOffset').value=detail.music?.offset ?? 0;
+  loadSong(name, detail);
+  $('mNote').textContent = detail.music?.bpm
+    ? `${(60/detail.music.bpm).toFixed(3)} s per beat`
+    : 'No tempo set — effects use seconds and the timeline has no beat grid.';
+  renderFormations(detail);
+  if(art.assetId) updateMask();   // the drone count drives the sampling
+  refreshRegistry();
+  drawFence(detail.limits.geofence, detail.limits.max_altitude);
+  buildTrails(plan);
+  controls.target.set(0,0,Math.max(detail.limits.max_altitude*0.4,30));
+  updateClock();
+  await refreshLibrary();
+}
+
+function renderFormations(detail){
+  const ul=$('formationList'); ul.innerHTML='';
+  $('sbCount').textContent = detail.formations.length
+    ? `${detail.formations.length} · ${detail.duration}s` : '';
+  if(!detail.formations.length){
+    ul.innerHTML='<li class="empty">No formations. Pick a shape and add one.</li>';
+    $('fxTarget').textContent='no formation selected'; return;
+  }
+  let t=0;
+  detail.formations.forEach((f,i)=>{
+    const start=t; t+=f.transition+f.hold;
+    const li=document.createElement('li');
+    li.setAttribute('aria-selected', String(i===state.selected));
+    li.innerHTML=`<div class="t"><b>${i+1}. ${f.name}</b>
+        <span class="mini mono">${start.toFixed(1)}s</span></div>
+      <div class="mini">${f.transition}s in · ${f.hold}s hold · ${f.easing}
+        ${f.yaw?' · yaw':''}${f.pyro?.length?` · <span style="color:var(--pyro)">${f.pyro.length} pyro</span>`:''}
+        ${f.color_keys?.length?` · ${f.color_keys.length} light keys`:''}</div>`;
+    const del=document.createElement('button');
+    del.className='danger sm'; del.textContent='Remove';
+    del.style.marginTop='5px';
+    del.onclick=async ev=>{ ev.stopPropagation();
+      await api(`/api/design/shows/${encodeURIComponent(state.showName)}/formations/${i}`,{method:'DELETE'});
+      state.selected=0; await openShow(state.showName); };
+    li.appendChild(del);
+    li.onclick=()=>{ state.selected=i; state.time=start+f.transition*0.5;
+      setPlaying(false); updateClock(); renderFormations(detail); syncTargets(); };
+    ul.appendChild(li);
+  });
+  syncTargets();
+}
+function syncTargets(){
+  const f=state.detail?.formations?.[state.selected];
+  const label = f ? `→ ${state.selected+1}. ${f.name}` : 'no formation selected';
+  $('fxTarget').textContent=label; $('pyTarget').textContent=label; $('mvTarget').textContent=label; $('tfTarget').textContent=label;
+  const m=f?.motion||{spin:0,move:[0,0,0],grow:1};
+  $('mvSpin').value=m.spin; $('mvGrow').value=m.grow;
+  $('mvE').value=m.move[0]; $('mvN').value=m.move[1]; $('mvU').value=m.move[2];
+}
+
+/* ----------------------------- actions --------------------------- */
+$('shape').onchange=renderShapeParams;
+$('effect').onchange=renderEffectParams;
+$('fxBeat').onchange=e=>{ $('fxBeatBox').style.display=e.target.checked?'block':'none'; };
+
+$('btnTheme').onclick=()=>{
+  const el=document.documentElement;
+  el.dataset.theme = el.dataset.theme==='light' ? 'dark':'light';
+  localStorage.setItem('skyshine-theme', el.dataset.theme);
+  applyTheme();
+};
+try{ const saved=localStorage.getItem('skyshine-theme');
+  if(saved) document.documentElement.dataset.theme=saved; applyTheme(); }catch{}
+
+$('btnHelp').onclick=()=>ask({title:'Keyboard shortcuts', confirmLabel:'Close',
+  body:[
+    'space      play / pause',
+    'home / 0   jump to start',
+    '← →        step 1 s   (shift: 5 s)',
+    ', .        previous / next formation',
+    'v          validate',
+    'p          prepare',
+    'm          toggle 3D / map',
+    'l          toggle live / preview',
+    't          toggle theme',
+    'esc        close dialog',
+  ].join('\n')});
+
+$('btnNew').onclick=async()=>{
+  const name=await ask({title:'New show', body:'Name for the show.',
+    input:'summer gala', confirmLabel:'Create'});
+  if(!name) return;
+  const count=await ask({title:'Drone count', body:`How many drones for "${name}"?`,
+    input:'100', confirmLabel:'Create'});
+  if(!count) return;
+  try{
+    const r=await api('/api/design/shows',{method:'POST',body:{
+      name, drone_count:Number(count),
+      limits:{min_separation:3.0, max_altitude:120.0, battery_endurance_s:900.0},
+      origin:{latitude:0,longitude:0,amsl:null,orientation_deg:0},
+    }});
+    await refreshLibrary(); await openShow(r.show); toast(`created ${r.show}`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+/* Templates: a built-in storyboard instead of a blank show. */
+api('/api/design/templates').then(({templates})=>{
+  state.templates=templates;
+  templates.forEach(t=>{
+    const o=document.createElement('option'); o.value=t.id;
+    o.textContent=`${t.title} (${t.formations} formations)`; o.title=t.summary;
+    $('tplPick').appendChild(o);
+  });
+}).catch(()=>{});
+$('tplPick').onchange=async()=>{
+  const t=state.templates.find(x=>x.id===$('tplPick').value);
+  $('tplPick').value='';
+  if(!t) return;
+  const name=await ask({title:`New show: ${t.title}`, body:`${t.summary} Name for the show.`,
+    input:t.title.toLowerCase(), confirmLabel:'Next'});
+  if(!name) return;
+  const count=await ask({title:'Drone count', body:`How many drones for "${name}"?`,
+    input:'100', confirmLabel: t.text ? 'Next' : 'Create'});
+  if(!count) return;
+  // Cancelling the text step keeps the template's own words.
+  const text = t.text ? await ask({title:'Text', confirmLabel:'Create', input:t.text,
+    body:`Words to spell in lights. Leave blank for "${t.text}". Short text reads best.`}) : '';
+  try{
+    const r=await api(`/api/design/templates/${encodeURIComponent(t.id)}`,{method:'POST',
+      body:{name, drone_count:Number(count), text:text||''}});
+    await refreshLibrary(); await openShow(r.show);
+    if(r.warnings.length) toast(`created ${r.show} — ${r.warnings.length} formation`
+      +`${r.warnings.length===1?'':'s'} will not fit`,'warn',r.warnings[0]);
+    else toast(`created ${r.show} from the ${t.title} template`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnDel').onclick=async()=>{
+  if(!state.showName) return;
+  const ok=await ask({title:'Delete show', danger:true, confirmLabel:'Delete',
+    body:`Permanently delete "${state.showName}". This cannot be undone.`});
+  if(!ok) return;
+  await api(`/api/design/shows/${encodeURIComponent(state.showName)}`,{method:'DELETE'});
+  state.showName=null; state.plan=null; state.detail=null;
+  await refreshLibrary(); toast('deleted');
+};
+
+async function stepHistory(what){
+  if(!state.showName) return;
+  try{
+    await api(`/api/design/shows/${encodeURIComponent(state.showName)}/${what}`,{method:'POST'});
+    await openShow(state.showName); toast(what==='undo'?'undone':'redone');
+  }catch(e){ toast(e.message,'warn'); }
+}
+$('btnUndo').onclick=()=>stepHistory('undo');
+$('btnRedo').onclick=()=>stepHistory('redo');
+
+$('btnCopy').onclick=async()=>{
+  if(!state.showName) return;
+  const name=await ask({title:'Duplicate show', input:`${state.showName} copy`,
+    confirmLabel:'Duplicate', body:`Save a copy of "${state.showName}" under a new name.`});
+  if(!name) return;
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/duplicate`
+      +`?save_as=${encodeURIComponent(name)}`,{method:'POST'});
+    await refreshLibrary(); await openShow(r.show); toast(`duplicated as ${r.show}`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnDup').onclick=async()=>{
+  if(!state.showName) return;
+  const n=await ask({title:'Adapt to fewer drones', input:String(state.detail.drone_count-2),
+    confirmLabel:'Adapt',
+    body:`Re-cut "${state.showName}" for a smaller fleet. Each formation is
+re-sampled to keep its silhouette, then the whole plan is rescaled, rematched
+and retimed, so the result passes validation in its own right.`});
+  if(!n) return;
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/adapt?count=${Number(n)}`,
+      {method:'POST'});
+    await openShow(r.saved_as);
+    toast(`adapted to ${r.drone_count} drones — ${r.passed?'passes':'FAILS'} validation`,
+      r.passed?'ok':'bad', r.notes.join('\n'));
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnAdd').onclick=async()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/formations`,
+      {method:'POST', body:{
+        name:$('fName').value, shape:$('shape').value, params:collect('shapeParams'),
+        color:hexToRgb($('fColor').value), altitude:Number($('fAlt').value),
+        transition:Number($('fTrans').value), hold:Number($('fHold').value),
+        easing:$('fEase').value, yaw:Number($('fYaw').value),
+        drones: $('fDrones').value ? Number($('fDrones').value) : null,
+      }});
+    state.selected = (state.detail?.formations?.length)||0;
+    await openShow(state.showName);
+    if(r.warning) toast('added — but it will not fit','warn',r.warning);
+    else toast(`added — raw spacing ${r.raw_min_separation_m} m, extent ${r.extent_m.join(' × ')} m`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+const hexToRgb=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+
+$('btnEffect').onclick=async()=>{
+  if(!state.showName) return;
+  try{
+    const body={effect:$('effect').value, params:collect('effectParams')};
+    if($('fxBeat').checked) body.beats_per_cycle=Number($('fxBeats').value);
+    if($('fxPicked').checked){
+      const pf=pickFormation();
+      if(!pick.list.length) return toast('pick drones in the 3D view first, or untick "only the picked drones"','warn');
+      if(!pf || pf.k!==state.selected) return toast('the picked drones are in a different formation from the selected one','warn');
+      body.near=pickedNear();
+    }
+    const r=await api(
+      `/api/design/shows/${encodeURIComponent(state.showName)}/formations/${state.selected}/effect`,
+      {method:'POST', body});
+    await openShow(state.showName);
+    toast(`${r.effect}: ${r.keyframes} light keyframes at ${r.render_fps} Hz` +
+      (r.period_s?`, period ${r.period_s}s`:''));
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnMusic').onclick=async()=>{
+  if(!state.showName) return;
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/music`,
+      {method:'PUT', body:{
+        path:$('mPath').value||null,
+        bpm:$('mBpm').value?Number($('mBpm').value):null,
+        beat_phase:Number($('mPhase').value)||0,
+        offset:Number($('mOffset').value)||0, cues:state.detail?.music?.cues||[],
+      }});
+    await openShow(state.showName);
+    toast(r.beat_seconds?`${r.beats} beats at ${r.beat_seconds.toFixed(3)} s`:'music cleared');
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnCue').onclick=async()=>{
+  if(!state.showName) return;
+  const label=await ask({title:'Cue label', input:'drop',
+    body:`Mark show time ${state.time.toFixed(2)} s.`, confirmLabel:'Add'});
+  if(!label) return;
+  const cues=[...(state.detail.music?.cues||[]), [Number(state.time.toFixed(2)), label]];
+  await api(`/api/design/shows/${encodeURIComponent(state.showName)}/music`,
+    {method:'PUT', body:{...state.detail.music, cues}});
+  await openShow(state.showName); toast(`cue "${label}" added`);
+};
+
+$('btnPyro').onclick=async()=>{
+  if(!state.showName) return;
+  try{
+    const drones=$('pyDrones').value.split(/[,\s]+/).filter(Boolean).map(Number);
+    const r=await api(
+      `/api/design/shows/${encodeURIComponent(state.showName)}/formations/${state.selected}/pyro`,
+      {method:'POST', body:{at:Number($('pyAt').value), drones,
+        heading_deg:Number($('pyHead').value), settle_s:Number($('pySettle').value),
+        description:$('pyDesc').value, channel:1}});
+    await openShow(state.showName); toast(`pyro added (${r.events} on this formation)`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnImport').onclick=async()=>{
+  if(!state.showName) return toast('open or create a show first','warn');
+  const file=$('impFile').files[0];
+  if(!file) return toast('choose a 3D model or drawing first','warn');
+  const fd=new FormData();
+  fd.append('file', file);
+  fd.append('mode', $('impMode').value);
+  fd.append('up', $('impUp').value);
+  fd.append('size', String(Number($('impSize').value)||0));
+  fd.append('altitude', $('fAlt').value || '50');
+  fd.append('color', hexToRgb($('fColor').value).join(','));
+  $('btnImport').disabled=true; $('btnImport').textContent='Importing…';
+  try{
+    const res=await fetch(`/api/design/shows/${encodeURIComponent(state.showName)}/import-design`,{method:'POST', body:fd});
+    const r=await res.json().catch(()=>({}));
+    if(res.status===401) showLogin();
+    if(!res.ok) throw new Error(typeof r.detail==='string' ? r.detail : res.statusText);
+    await openShow(state.showName);
+    const what=r.source.kind==='model' ? `${r.source.triangles.toLocaleString()} triangles` : `${r.source.paths} line${r.source.paths===1?"":"s"}`;
+    if(r.warning) toast('imported, but it will not fit','warn',r.warning);
+    else toast(`imported ${file.name} (${what}), ${r.source.size_m.join(' × ')} m`);
+  }catch(e){ toast(e.message,'bad'); }
+  finally{ $('btnImport').disabled=false; $('btnImport').textContent='Import as a formation'; }
+};
+
+/* ---- picking drones in the 3D view: a click, not a drag ---- */
+(function(){
+  const ray=new THREE.Raycaster(); ray.params.Points.threshold=2.5;
+  let down=null;
+  renderer.domElement.addEventListener('pointerdown',e=>{ down={x:e.clientX,y:e.clientY}; });
+  renderer.domElement.addEventListener('pointerup',e=>{
+    if(!down || Math.hypot(e.clientX-down.x,e.clientY-down.y)>4 || state.tab!=='preview' || !state.plan) return;
+    const r=renderer.domElement.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1, -(e.clientY-r.top)/r.height*2+1), camera);
+    const hit=ray.intersectObject(plannedPts)[0];
+    if(!hit){ if(!e.shiftKey) pick.list=[]; }
+    else if(e.shiftKey){ const k=pick.list.indexOf(hit.index); k>=0 ? pick.list.splice(k,1) : pick.list.push(hit.index); }
+    else pick.list=[hit.index];
+    updatePickInfo();
+  });
+})();
+function pickFormation(){
+  const k=pick.lastIndex, f=state.plan?.formations?.[k];
+  return f ? {k, f} : null;
+}
+function updatePickInfo(){
+  const pf=pickFormation();
+  $('pickInfo').textContent = pick.list.length
+    ? `${pick.list.length} picked in ${pf ? pf.f.name : '?'}` : 'click drones in the 3D view';
+  $('keepOrder').checked = Boolean(pf?.f?.keep_order);
+}
+function pickedNear(){
+  // The formation's own (start) positions, so a moving formation is found too.
+  const pf=pickFormation();
+  return pf ? pick.list.map(d=>pf.f.points[d]) : [];
+}
+async function pickCall(path, body, done){
+  const pf=pickFormation();
+  if(!state.showName || !pf) return toast('pick drones in a formation first','warn');
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/formations/${pf.k}/${path}`,
+      {method:'POST', body});
+    pick.list=[]; await openShow(state.showName); updatePickInfo(); done(r);
+  }catch(e){ toast(e.message,'bad'); }
+}
+$('btnPickMove').onclick=()=>{
+  if(!pick.list.length) return toast('click drones in the 3D view first','warn');
+  pickCall('nudge', {near:pickedNear(), move:[Number($('pkE').value)||0, Number($('pkN').value)||0, Number($('pkU').value)||0]},
+    r=> r.warning ? toast(`moved ${r.moved}, but it will not fit`,'warn',r.warning)
+                  : toast(`moved ${r.moved} drone${r.moved===1?'':'s'}; closest pair now ${r.closest_m} m`));
+};
+$('btnPickSwap').onclick=()=>{
+  if(pick.list.length!==2) return toast('pick exactly two drones (Shift+click the second)','warn');
+  pickCall('swap', {near:pickedNear()}, ()=>toast('swapped; this formation\'s order is now locked. Check the show again.'));
+};
+$('btnPickClear').onclick=()=>{ pick.list=[]; updatePickInfo(); };
+$('btnPickPaint').onclick=()=>{
+  if(!pick.list.length) return toast('click drones in the 3D view first','warn');
+  pickCall('paint', {near:pickedNear(), color:hexToRgb($('pkColor').value)},
+    r=>toast(`painted ${r.painted} drone${r.painted===1?'':'s'}`));
+};
+$('keepOrder').onchange=async()=>{
+  const pf=pickFormation();
+  if(!state.showName || !pf){ $('keepOrder').checked=false; return toast('show a formation first','warn'); }
+  try{
+    await api(`/api/design/shows/${encodeURIComponent(state.showName)}/formations/${pf.k}/order`,
+      {method:'PUT', body:{keep_order:$('keepOrder').checked}});
+    await openShow(state.showName);
+    toast($('keepOrder').checked ? `order locked in ${pf.f.name}` : `${pf.f.name} is matched freely again`);
+  }catch(e){ toast(e.message,'bad'); $('keepOrder').checked=!$('keepOrder').checked; }
+};
+
+/* ---- drawing pad ---- */
+(function(){
+  const pad=$('drawPad'), g=pad.getContext('2d');
+  const strokes=[]; let cur=null;
+  const at=e=>{ const r=pad.getBoundingClientRect();
+    return [(e.clientX-r.left)*pad.width/r.width, (e.clientY-r.top)*pad.height/r.height]; };
+  function redraw(){
+    g.clearRect(0,0,pad.width,pad.height);
+    g.lineWidth=4; g.lineCap='round'; g.lineJoin='round';
+    g.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#5ad1ff';
+    for(const s of strokes){ g.beginPath(); s.forEach(([x,y],i)=> i?g.lineTo(x,y):g.moveTo(x,y)); g.stroke(); }
+  }
+  pad.addEventListener('pointerdown',e=>{ try{ pad.setPointerCapture(e.pointerId); }catch{} cur=[at(e)]; strokes.push(cur); });
+  pad.addEventListener('pointermove',e=>{ if(!cur) return; const p=at(e), q=cur[cur.length-1];
+    if(Math.hypot(p[0]-q[0],p[1]-q[1])>=2){ cur.push(p); redraw(); } });
+  pad.addEventListener('pointerup',()=>{ if(cur && cur.length<2) strokes.pop(); cur=null; redraw(); });
+  $('btnDrawUndo').onclick=()=>{ strokes.pop(); redraw(); };
+  $('btnDrawClear').onclick=()=>{ strokes.length=0; redraw(); };
+  $('btnDrawAdd').onclick=async()=>{
+    if(!state.showName) return toast('open or create a show first','warn');
+    if(!strokes.length) return toast('draw something first','warn');
+    try{
+      const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/draw`,{method:'POST',
+        body:{strokes, name:'drawing', altitude:Number($('fAlt').value)||50, color:hexToRgb($('fColor').value)}});
+      strokes.length=0; redraw(); await openShow(state.showName);
+      r.warning ? toast('added, but it will not fit','warn',r.warning) : toast(`drawing added, ${r.extent_m.join(' × ')} m`);
+    }catch(e){ toast(e.message,'bad'); }
+  };
+})();
+
+$('btnPicture').onclick=async()=>{
+  if(!state.showName || !state.detail?.formations?.[state.selected]) return toast('select a formation first','warn');
+  if(!art.assetId) return toast('click an uploaded picture first','warn');
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/formations/${state.selected}/picture`,
+      {method:'POST', body:{asset_id:art.assetId, view:$('picView').value}});
+    await openShow(state.showName);
+    toast(`coloured from the picture; ${r.lit} drones lit`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('genKind').onchange=()=>{
+  const k=$('genKind').value;
+  $('genTextBox').style.display = k==='countdown' ? 'none' : '';
+  $('genStartBox').style.display = k==='countdown' ? '' : 'none';
+  $('genQrBox').style.display = k==='qr' ? '' : 'none';
+  if(k==='ticker' && $('genText').value.startsWith('http')) $('genText').value='HAPPY NEW YEAR';
+};
+$('btnGenerate').onclick=async()=>{
+  if(!state.showName) return toast('open or create a show first','warn');
+  const kind=$('genKind').value;
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/generate`,{method:'POST',
+      body:{kind, text:$('genText').value, start:Number($('genStart').value)||10,
+        lit:document.querySelector('input[name=genLit]:checked').value, flat:$('genFlat').checked,
+        color:hexToRgb($('fColor').value), altitude:Number($('fAlt').value)||50}});
+    await openShow(state.showName);
+    r.warning ? toast(`added ${r.name}, but it will not fit`,'warn',r.warning)
+              : toast(`added ${r.name}: ${r.extent_m.filter(v=>v>0.5).join(" × ")} m, ${r.hold_s}s`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+/* ---- flight limits and keep-out zones ---- */
+const LIMIT_INPUTS={lmSep:'min_separation', lmCeil:'max_altitude', lmFloor:'min_nav_altitude',
+  lmVxy:'max_velocity_xy', lmUp:'max_velocity_up', lmDown:'max_velocity_down',
+  lmAcc:'max_acceleration', lmShare:'motion_speed_share', lmBat:'battery_endurance_s'};
+function showLimits(lim){
+  for(const [id,k] of Object.entries(LIMIT_INPUTS)) $(id).value = lim[k];
+  const zones=lim.keep_out||[];
+  $('zoneList').innerHTML = zones.length ? '' : 'No keep-out zones.';
+  zones.forEach((z,i)=>{
+    const row=document.createElement('div'); row.className='row tight'; row.style.alignItems='center';
+    const label=document.createElement('span'); label.style.flex='1';
+    label.textContent=`${z.name||'zone '+(i+1)}: ${z.x} E, ${z.y} N, radius ${z.radius} m, ${z.bottom}–${z.top} m`;
+    const rm=document.createElement('button'); rm.className='sm'; rm.textContent='Remove';
+    rm.onclick=()=>saveLimits({keep_out:zones.filter((_,k)=>k!==i)}, 'zone removed');
+    row.append(label, rm); $('zoneList').appendChild(row);
+  });
+}
+async function saveLimits(changes, done){
+  if(!state.showName) return toast('open a show first','warn');
+  try{
+    await api(`/api/design/shows/${encodeURIComponent(state.showName)}/limits`,{method:'PATCH', body:changes});
+    await openShow(state.showName); toast(done);
+  }catch(e){ toast(e.message,'bad'); }
+}
+$('btnLimits').onclick=()=>{
+  const changes={};
+  for(const [id,k] of Object.entries(LIMIT_INPUTS)) if($(id).value!=='') changes[k]=Number($(id).value);
+  saveLimits(changes, 'limits saved; prepare the show again before flying');
+};
+$('btnZoneAdd').onclick=()=>{
+  const zones=[...(state.detail?.limits?.keep_out||[])];
+  zones.push({name:$('zName').value||`zone ${zones.length+1}`, x:Number($('zX').value), y:Number($('zY').value),
+    radius:Number($('zR').value), bottom:Number($('zLo').value), top:Number($('zHi').value)});
+  saveLimits({keep_out:zones}, 'keep-out zone added');
+};
+const zoneGroup=new THREE.Group(); scene.add(zoneGroup);
+function drawZones(zones){
+  zoneGroup.clear();
+  for(const z of zones){
+    const h=Math.max(z.top-z.bottom,0.1);
+    const geo=new THREE.CylinderGeometry(z.radius, z.radius, h, 32, 1, true);
+    geo.rotateX(Math.PI/2);                      // the scene is z-up
+    const mesh=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:0xff3b4f, transparent:true,
+      opacity:0.18, side:THREE.DoubleSide, depthWrite:false}));
+    mesh.position.set(z.x, z.y, z.bottom+h/2);
+    const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({color:0xff3b4f, transparent:true, opacity:0.7}));
+    edges.position.copy(mesh.position);
+    zoneGroup.add(mesh, edges);
+  }
+}
+
+/* ---- the song: upload, waveform, playback in step, tempo ---- */
+const song={ el:new Audio(), buffer:null, peaks:null, key:null };
+song.el.preload='auto';
+async function loadSong(name, detail){
+  const path=detail.music?.path||'';
+  const key=`${name}|${path}`;
+  if(key===song.key) return;
+  song.key=key; song.buffer=null; song.peaks=null; song.el.pause();
+  if(!/^audio\/[0-9a-f]{16}\./.test(path)){
+    song.el.removeAttribute('src'); $('songNote').textContent='No song uploaded.'; return;
+  }
+  const url=`/api/design/shows/${encodeURIComponent(name)}/audio?v=${encodeURIComponent(path)}`;
+  song.el.src=url;
+  $('songNote').textContent=`${detail.audio||'song'} — loading…`;
+  try{
+    const data=await (await fetch(url)).arrayBuffer();
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const buf=await ctx.decodeAudioData(data); ctx.close();
+    if(song.key!==key) return;
+    song.buffer=buf; song.peaks=peaksOf(buf, 4000);
+    $('songNote').textContent=`${detail.audio||'song'} — ${buf.duration.toFixed(1)} s`;
+  }catch(e){ $('songNote').textContent=`${detail.audio||'song'} — this browser cannot decode it`; }
+}
+function peaksOf(buf, n){
+  const ch=buf.getChannelData(0), step=Math.max(1,Math.floor(ch.length/n)), out=new Float32Array(n);
+  for(let i=0;i<n;i++){ let m=0; for(let j=i*step;j<Math.min(ch.length,(i+1)*step);j++){ const v=Math.abs(ch[j]); if(v>m) m=v; } out[i]=m; }
+  return out;
+}
+function songOffset(){ return Number(state.detail?.music?.offset)||0; }
+function syncSong(){
+  if(!song.el.src) return;
+  let t=null, running=false;
+  if(state.tab==='live' && state.live){ t=state.live.show_time; running=['running'].includes(state.live.phase); }
+  else { t=state.time; running=state.playing; }
+  const at=t+songOffset();
+  const dur=song.el.duration||song.buffer?.duration||0;
+  if(!running || at<0 || (dur && at>=dur)){ if(!song.el.paused) song.el.pause(); return; }
+  if(song.el.paused){ song.el.currentTime=at; song.el.play().catch(()=>{}); }
+  else if(Math.abs(song.el.currentTime-at)>0.2) song.el.currentTime=at;
+}
+$('songFile').onchange=async()=>{
+  const file=$('songFile').files[0];
+  if(!state.showName || !file) return;
+  const fd=new FormData(); fd.append('file', file);
+  try{
+    const res=await fetch(`/api/design/shows/${encodeURIComponent(state.showName)}/audio`,{method:'POST', body:fd});
+    const r=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(typeof r.detail==='string'?r.detail:res.statusText);
+    song.key=null; await openShow(state.showName); toast(`song added: ${r.title}`);
+  }catch(e){ toast(e.message,'bad'); }
+  $('songFile').value='';
+};
+/* Tempo from the song: onset strength, then the beat period that best
+   lines it up with itself, then the phase that lands on the most onsets. */
+function detectTempo(buf){
+  const sr=buf.sampleRate, ch=buf.getChannelData(0), hop=512, n=Math.floor(ch.length/hop), fr=sr/hop;
+  const env=new Float32Array(n); let prev=0;
+  for(let i=0;i<n;i++){ let e=0; for(let j=i*hop;j<(i+1)*hop;j++) e+=ch[j]*ch[j]; e=Math.sqrt(e/hop); env[i]=Math.max(0,e-prev); prev=e; }
+  const score=bpm=>{ const lag=fr*60/bpm; let s=0,c=0;
+    for(let i=0;i+lag+1<n;i++){ const k=i+lag, k0=Math.floor(k), a=k-k0; s+=env[i]*(env[k0]*(1-a)+env[k0+1]*a); c++; }
+    return c? s/c : 0; };
+  let best=0, bpm=120;
+  for(let b=60;b<=200;b+=0.25){ const s=score(b); if(s>best){ best=s; bpm=b; } }
+  // Autocorrelation also peaks at half and double the tempo; prefer 80-160.
+  if(bpm<80 && score(bpm*2)>0.5*best) bpm*=2;
+  if(bpm>160 && score(bpm/2)>0.5*best) bpm/=2;
+  const lag=fr*60/bpm; let bestPhase=0, bestSum=-1;
+  for(let p=0;p<lag;p++){ let s=0; for(let k=p;k<n;k+=lag) s+=env[Math.round(k)]||0; if(s>bestSum){ bestSum=s; bestPhase=p; } }
+  return {bpm:Math.round(bpm*10)/10, phase:bestPhase/fr};
+}
+$('btnTempo').onclick=async()=>{
+  if(!song.buffer) return toast('upload a song first, and let it finish loading','warn');
+  const {bpm, phase}=detectTempo(song.buffer);
+  const beat=60/bpm;
+  // The downbeat in show time: song time minus where the show starts in the song.
+  let showPhase=((phase-songOffset())%beat+beat)%beat;
+  $('mBpm').value=bpm; $('mPhase').value=showPhase.toFixed(3);
+  $('btnMusic').click();
+  toast(`tempo ${bpm} BPM, saved`);
+};
+
+/* ---- flight charts: one canvas per measure, limits dashed, playhead live ---- */
+const charts={ data:null, show:null, drawnAt:null };
+const CHARTS=[
+  {title:'Height', unit:'m', lines:[['altitude_max','--accent','highest'],['altitude_min','--dim','lowest']],
+   limits:[['max_altitude','ceiling'],['min_nav_altitude','lowest allowed']]},
+  {title:'Sideways speed', unit:'m/s', lines:[['speed_xy','--accent','fastest']], limits:[['max_velocity_xy','limit']]},
+  {title:'Climb and descent', unit:'m/s', lines:[['climb','--ok','climb'],['descent','--warn','descent']],
+   limits:[['max_velocity_up','climb limit'],['max_velocity_down','descent limit']]},
+  {title:'Acceleration', unit:'m/s²', lines:[['acceleration','--accent','peak']], limits:[['max_acceleration','limit']]},
+  {title:'Closest two drones', unit:'m', lines:[['closest','--accent','closest']], limits:[['min_separation','minimum']], low:true},
+];
+$('btnCharts').onclick=async()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  $('btnCharts').textContent='…';
+  try{
+    charts.data=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/charts`);
+    charts.show=state.showName;
+    $('charts').innerHTML='';
+    CHARTS.forEach((c,i)=>{
+      const wrap=document.createElement('div'); wrap.style.marginTop='8px';
+      wrap.innerHTML=`<div class="mini" id="chartTitle${i}"></div>`;
+      const cv=document.createElement('canvas'); cv.id=`chart${i}`; cv.height=90;
+      cv.style.cssText='width:100%;height:90px;display:block;cursor:pointer;background:var(--panel2);border-radius:6px';
+      cv.onclick=e=>{ const r=cv.getBoundingClientRect(); const d=charts.data; if(!d) return;
+        state.time=(e.clientX-r.left)/r.width*d.t[d.t.length-1]; setPlaying(false); updateClock(); drawCharts(); };
+      wrap.appendChild(cv); $('charts').appendChild(wrap);
+    });
+    drawCharts();
+  }catch(e){ toast(e.message,'bad'); }
+  finally{ $('btnCharts').textContent='Draw'; }
+};
+function drawCharts(){
+  const d=charts.data; if(!d || charts.show!==state.showName){ return; }
+  charts.drawnAt=state.time;
+  const css=getComputedStyle(document.documentElement), S=devicePixelRatio, tEnd=d.t[d.t.length-1]||1;
+  const at=Math.max(0, Math.min(d.t.length-1, Math.round(state.time/tEnd*(d.t.length-1))));
+  CHARTS.forEach((c,i)=>{
+    const cv=$(`chart${i}`); if(!cv) return;
+    const W=cv.width=Math.round(cv.clientWidth*S), H=cv.height=Math.round(90*S), g=cv.getContext('2d');
+    const pad={l:30*S, r:6*S, t:8*S, b:12*S};
+    const vals=c.lines.flatMap(([k])=>d[k]).filter(v=>v!=null);
+    const lims=c.limits.map(([k,l])=>[d.limits[k],l]);
+    const top=Math.max(...vals, ...lims.map(x=>x[0]))*1.1 || 1;
+    const X=t=>pad.l+(t/tEnd)*(W-pad.l-pad.r), Y=v=>H-pad.b-(v/top)*(H-pad.t-pad.b);
+    g.clearRect(0,0,W,H);
+    g.font=`${9*S}px ${css.getPropertyValue('--mono')}`; g.fillStyle=css.getPropertyValue('--faint');
+    for(const v of [0, top/1.1]){ g.fillText(v.toFixed(v<10?1:0), 2*S, Y(v)+3*S); }
+    g.setLineDash([4*S,3*S]); g.lineWidth=S; g.strokeStyle=css.getPropertyValue('--bad');
+    for(const [v] of lims){ g.beginPath(); g.moveTo(pad.l,Y(v)); g.lineTo(W-pad.r,Y(v)); g.stroke(); }
+    g.setLineDash([]); g.lineWidth=1.5*S;
+    const now=[];
+    for(const [k,color,label] of c.lines){
+      g.strokeStyle=css.getPropertyValue(color); g.beginPath(); let pen=false;
+      d[k].forEach((v,j)=>{ if(v==null){ pen=false; return; } const x=X(d.t[j]), y=Y(v); pen?g.lineTo(x,y):g.moveTo(x,y); pen=true; });
+      g.stroke();
+      const v=d[k][at]; now.push(`${label} ${v==null?'—':v.toFixed(1)}`);
+    }
+    // worst point, so the eye finds the tightest moment
+    const worst=c.lines[0][0], arr=d[worst];
+    let wi=-1; arr.forEach((v,j)=>{ if(v==null) return; if(wi<0 || (c.low? v<arr[wi] : v>arr[wi])) wi=j; });
+    if(wi>=0){ g.fillStyle=css.getPropertyValue('--bad'); g.beginPath(); g.arc(X(d.t[wi]),Y(arr[wi]),3*S,0,7); g.fill(); }
+    g.strokeStyle=css.getPropertyValue('--accent'); g.lineWidth=S;
+    g.beginPath(); g.moveTo(X(state.time),pad.t); g.lineTo(X(state.time),H-pad.b); g.stroke();
+    const worstTxt = wi>=0 ? ` · ${c.low?'lowest':'highest'} ${arr[wi].toFixed(2)} ${c.unit} at ${d.t[wi].toFixed(1)}s` : '';
+    $(`chartTitle${i}`).textContent=`${c.title} (${c.unit}) — ${now.join(', ')} at ${state.time.toFixed(1)}s${worstTxt}`;
+  });
+}
+
+/* ---- venue: ground picture and site model, shown only ---- */
+const venueGroup=new THREE.Group(); scene.add(venueGroup);
+scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x202530, 0.9));
+const venueSun=new THREE.DirectionalLight(0xffffff, 0.7); venueSun.position.set(200,-300,400); scene.add(venueSun);
+let venueKey=null;
+async function drawVenue(name, venue){
+  const key=JSON.stringify([name, venue]);
+  if(key===venueKey) return;
+  venueKey=key; venueGroup.clear();
+  const pic=venue.picture, model=venue.model;
+  const parts=[];
+  if(pic){
+    new THREE.TextureLoader().load(`/api/design/assets/${pic.asset_id}/file`, tex=>{
+      if(venueKey!==key) return;
+      const h=pic.width_m*tex.image.height/tex.image.width;
+      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(pic.width_m, h),
+        new THREE.MeshBasicMaterial({map:tex, transparent:true, opacity:0.85, depthWrite:false}));
+      mesh.rotation.z=pic.rotation*Math.PI/180; mesh.position.set(pic.x, pic.y, 0.05);
+      venueGroup.add(mesh);
+    });
+    parts.push(`picture ${pic.width_m} m wide`);
+  }
+  if(model){
+    try{
+      const m=await api(`/api/design/shows/${encodeURIComponent(name)}/venue/mesh`);
+      if(venueKey!==key) return;
+      const geo=new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(m.vertices,3));
+      geo.setIndex(m.triangles); geo.computeVertexNormals();
+      venueGroup.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color:0x8c97a8,
+        transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false})));
+      parts.push(`model "${model.name}", ${(m.triangles.length/3).toLocaleString()} triangles shown`);
+    }catch(e){ parts.push(`model: ${e.message}`); }
+  }
+  $('venueNote').textContent = parts.length ? `Showing ${parts.join(' and ')}. Only shown; a keep-out zone protects it.`
+    : 'The venue is only shown; a keep-out zone is what protects it.';
+}
+async function venueCall(path, opts, done){
+  if(!state.showName) return toast('open a show first','warn');
+  try{ const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/venue/${path}`, opts);
+    await openShow(state.showName); done(r); }
+  catch(e){ toast(e.message,'bad'); }
+}
+$('btnVenuePic').onclick=()=>{
+  if(!art.assetId) return toast('click an uploaded picture under "Logo & text" first','warn');
+  venueCall('picture',{method:'PUT', body:{asset_id:art.assetId, width_m:Number($('vpW').value)||300,
+    rotation:Number($('vpRot').value)||0, x:Number($('vpX').value)||0, y:Number($('vpY').value)||0}},
+    ()=>toast('picture laid on the ground'));
+};
+$('btnVenuePicOff').onclick=()=>venueCall('picture',{method:'PUT', body:{asset_id:null}}, ()=>toast('picture removed'));
+$('btnVenueModel').onclick=async()=>{
+  const file=$('vmFile').files[0];
+  if(!state.showName || !file) return toast('choose a site model first','warn');
+  const fd=new FormData(); fd.append('file', file);
+  for(const [k,id] of [['scale','vmScale'],['up','vmUp'],['rotation','vmRot'],['x','vmX'],['y','vmY'],['z','vmZ']]) fd.append(k, $(id).value);
+  try{
+    const res=await fetch(`/api/design/shows/${encodeURIComponent(state.showName)}/venue/model`,{method:'POST', body:fd});
+    const r=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(typeof r.detail==='string'?r.detail:res.statusText);
+    await openShow(state.showName);
+    toast(`site model added: ${r.size_m.join(' × ')} m, top at ${r.top_m} m`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+$('btnVenueZone').onclick=()=>venueCall('keep-out',{method:'POST'},
+  r=>toast(`keep-out zone added around the site: radius ${r.zone.radius} m, up to ${r.zone.top} m`));
+$('btnVenueModelOff').onclick=()=>venueCall('model',{method:'DELETE'}, ()=>toast('site model removed'));
+
+$('btnTransform').onclick=async()=>{
+  if(!state.showName || !state.detail?.formations?.[state.selected]) return toast('select a formation first','warn');
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/formations/${state.selected}/transform`,
+      {method:'PUT', body:{move:[Number($('tfE').value)||0, Number($('tfN').value)||0, Number($('tfU').value)||0],
+        turn:Number($('tfTurn').value)||0, tilt:Number($('tfTilt').value)||0, scale:Number($('tfScale').value)||1}});
+    for(const id of ['tfE','tfN','tfU','tfTurn','tfTilt']) $(id).value='0';
+    $('tfScale').value='1';
+    await openShow(state.showName);
+    if(r.warning) toast('moved, but it will not fit','warn',r.warning);
+    else toast(`formation is now ${r.extent_m.join(' × ')} m`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+async function sendMotion(body){
+  if(!state.showName || !state.detail?.formations?.[state.selected]) return toast('select a formation first','warn');
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/formations/${state.selected}/motion`,
+      {method:'PUT', body});
+    await openShow(state.showName);
+    if(r.warning) toast('motion set, but it will not fit','warn',r.warning);
+    else toast(r.motion ? `motion set; needs at least ${r.min_hold_s}s of hold` : 'formation holds still');
+  }catch(e){ toast(e.message,'bad'); }
+}
+$('btnMotion').onclick=()=>sendMotion({spin:Number($('mvSpin').value)||0,
+  move:[Number($('mvE').value)||0, Number($('mvN').value)||0, Number($('mvU').value)||0],
+  grow:Number($('mvGrow').value)||1});
+$('btnStill').onclick=()=>sendMotion({spin:0, move:[0,0,0], grow:1});
+
+$('btnYaw').onclick=async()=>{
+  if(!state.showName) return;
+  try{
+    await api(`/api/design/shows/${encodeURIComponent(state.showName)}/formations/${state.selected}/yaw`,
+      {method:'PUT', body:{yaw:Number($('pyHead').value)}});
+    await openShow(state.showName); toast(`yaw set to ${$('pyHead').value}°`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnPrepare').onclick=async()=>{
+  if(!state.showName) return;
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/prepare`,{method:'POST'});
+    await openShow(r.saved_as);
+    toast(`prepared as "${r.saved_as}" — ${r.duration}s`, 'ok', r.notes.join('\n'));
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+function showReport(r){
+  showMenu('check');
+  $('reportSection').style.display='block';
+  const metrics=Object.entries(r.metrics).map(([k,v])=>
+    `<div class="kv"><span>${k.replace(/_/g,' ')}</span><b>${v}</b></div>`).join('');
+  const findings=r.violations.length ? r.violations.map(v=>
+    `<div class="finding ${v.severity}">
+       <div class="h">${v.severity} · ${v.kind}${v.time!=null?` · t=${v.time}s`:''}</div>
+       ${v.message}</div>`).join('')
+    : '<div class="mini" style="color:var(--ok)">No findings.</div>';
+  $('reportBody').innerHTML=
+    `<div class="verdict ${r.passed?'pass':'fail'}">
+       ${r.passed?'PASS':'FAIL'} · ${r.error_count} errors, ${r.warning_count} warnings</div>
+     ${findings}
+     <details style="margin-top:10px" open><summary>Measurements</summary>${metrics}</details>`;
+  $('reportSection').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+$('btnCloseReport').onclick=()=>{ $('reportSection').style.display='none'; };
+
+$('btnValidate').onclick=async()=>{
+  if(!state.showName) return;
+  try{
+    const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/validate`,{method:'POST'});
+    showReport(r);
+    toast(r.passed
+      ? `PASS — closest approach ${r.metrics.min_separation_m} m against ${r.metrics.min_separation_limit_m} m`
+      : `FAIL — ${r.error_count} error${r.error_count===1?'':'s'}`, r.passed?'ok':'bad');
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnReport').onclick=()=>{
+  if(!state.showName) return;
+  window.open(`/api/design/shows/${encodeURIComponent(state.showName)}/report`,'_blank');
+};
+$('btnFence').onclick=async()=>{
+  if(!state.showName) return;
+  try{ const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/geofence/auto?margin=15`,
+    {method:'POST'});
+    await openShow(state.showName); toast(`geofence: ${r.vertices} vertices`,'ok',r.note);
+  }catch(e){ toast(e.message,'bad'); }
+};
+$('btnClosest').onclick=async()=>{
+  if(!state.showName) return;
+  try{ const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/closest`);
+    await ask({title:'Closest approaches', confirmLabel:'Close',
+      body:r.approaches.map(a=>`t=${String(a.time).padStart(7)}s   drones ${a.a} & ${a.b}   ${a.distance_m} m`)
+        .join('\n') + `\n\nlimit ${r.min_separation_limit_m} m (frame resolution; validate() is the verdict)`});
+  }catch(e){ toast(e.message,'bad'); }
+};
+$('btnMission').onclick=async()=>{
+  if(!state.showName) return;
+  try{ const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/mission`,{method:'POST'});
+    toast(`mission built — ${r.checksum.slice(0,16)}`,'ok',`signed by ${r.signed_by}\n${r.path}`);
+  }catch(e){ toast('mission refused','bad', e.message); }
+};
+$('btnMissionVerify').onclick=async()=>{
+  if(!state.showName) return;
+  try{ const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/mission/verify`);
+    toast(r.valid?'mission signature valid':'mission signature INVALID', r.valid?'ok':'bad',
+      r.detail + (r.valid ? `, ${new Date(r.signature.signed_at*1000).toLocaleString()}` : ''));
+  }catch(e){ toast(e.message,'bad'); }
+};
+/* Video: record the 3D view while the show plays from the start. Real time,
+   in the browser; MP4 where the browser can write it, otherwise WebM.
+   Browsers can claim MP4 and then fail on the first frame, so each format
+   is tried for real and a failure moves on to the next. */
+const rec={ recorder:null, chunks:[], failed:false };
+const VIDEO_TYPES=['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm'];
+function startRecorder(types){
+  const type=types.find(t=>MediaRecorder.isTypeSupported(t));
+  if(!type){ toast('this browser cannot record the 3D view','bad'); return false; }
+  const r=new MediaRecorder(renderer.domElement.captureStream(30), {mimeType:type, videoBitsPerSecond:8e6});
+  rec.recorder=r; rec.chunks=[]; rec.failed=false;
+  r.ondataavailable=e=>{ if(e.data.size) rec.chunks.push(e.data); };
+  r.onerror=()=>{ rec.failed=true; };
+  r.onstop=()=>{
+    if(rec.failed && !rec.chunks.length){
+      // This format failed before writing anything: try the next one.
+      rec.recorder=null;
+      const rest=types.slice(types.indexOf(type)+1);
+      if(rest.length && startRecorder(rest)){ state.time=0; return; }
+      return finishRecording(null);
+    }
+    finishRecording(new Blob(rec.chunks,{type:r.mimeType||type}));
+  };
+  r.start(1000);
+  return true;
+}
+function finishRecording(blob){
+  rec.recorder=null; $('btnRecord').textContent='Record video'; setPlaying(false);
+  if(!blob || !blob.size) return toast('the recording came out empty, so nothing was saved','bad');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${state.showName}.${blob.type.includes('mp4')?'mp4':'webm'}`;
+  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 60000);
+  toast(`video saved: ${(blob.size/1e6).toFixed(1)} MB (${blob.type.includes('mp4')?'MP4':'WebM'})`);
+}
+$('btnRecord').onclick=()=>{
+  if(rec.recorder){ rec.recorder.stop(); return; }
+  if(!state.plan) return toast('open a show first','warn');
+  if(!window.MediaRecorder || !renderer.domElement.captureStream) return toast('this browser cannot record video','bad');
+  setTab('preview'); setMode('3d');
+  state.time=0; updateClock();
+  if(!startRecorder(VIDEO_TYPES)) return;
+  setPlaying(true);
+  $('btnRecord').textContent='Stop recording';
+  toast('recording — it stops by itself at the end of the show');
+};
+function recordWatch(){ if(rec.recorder && rec.recorder.state==='recording' && !state.playing) rec.recorder.stop(); }
+setInterval(recordWatch, 250);
+
+for(const [id,fmt] of [['btnVviz','vviz'],['btnCsv','csv'],['btnSkyc','skyc']]){
+  $(id).onclick=async()=>{
+    if(!state.showName) return;
+    try{ const r=await api(`/api/design/shows/${encodeURIComponent(state.showName)}/export/${fmt}`,
+      {method:'POST'});
+      toast(`${fmt} exported`,'ok',`${r.path}\n${r.note}`);
+    }catch(e){ toast(e.message,'bad'); }
+  };
+}
+
+/* view toggles */
+function setTab(t){ state.tab=t;
+  $('tabPreview').setAttribute('aria-selected',String(t==='preview'));
+  $('tabLive').setAttribute('aria-selected',String(t==='live')); updateClock(); }
+$('tabPreview').onclick=()=>setTab('preview');
+$('tabLive').onclick=()=>setTab('live');
+function setMode(m){ state.mode=m;
+  $('view3d').setAttribute('aria-selected',String(m==='3d'));
+  $('view2d').setAttribute('aria-selected',String(m==='2d'));
+  renderer.domElement.style.display = m==='3d'?'block':'none';
+  $('map').style.display = m==='2d'?'block':'none'; }
+$('view3d').onclick=()=>setMode('3d');
+$('view2d').onclick=()=>setMode('2d');
+
+$('btnPlay').onclick=()=>setPlaying(!state.playing);
+$('btnStart0').onclick=()=>{ state.time=0; setPlaying(false); updateClock(); };
+$('showTrails').onchange=e=>{ trails.visible=e.target.checked; };
+$('showGhost').onchange=e=>{ state.ghost=e.target.checked; };
+$('btnTop').onclick=()=>{ camera.position.set(0,0,460); controls.target.set(0,0,0); };
+$('btnFront').onclick=()=>{ camera.position.set(0,-400,95); controls.target.set(0,0,70); };
+$('btnIso').onclick=()=>{ camera.position.set(200,-260,160); controls.target.set(0,0,55); };
+$('driver').onchange=e=>{
+  $('endpointBox').style.display = e.target.value.startsWith('mavlink')?'block':'none'; };
+
+/* keyboard */
+addEventListener('keydown',e=>{
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || $('modal').open) return;
+  const step = e.shiftKey?5:1;
+  if(e.ctrlKey||e.metaKey){
+    const k=e.key.toLowerCase();
+    if(k==='z'||k==='y'){ e.preventDefault();
+      stepHistory(k==='y'||e.shiftKey?'redo':'undo'); }
+    return;
+  }
+  switch(e.key){
+    case ' ': e.preventDefault(); setPlaying(!state.playing); break;
+    case 'Home': case '0': state.time=0; setPlaying(false); updateClock(); break;
+    case 'ArrowLeft': state.time=Math.max(0,state.time-step); setPlaying(false); updateClock(); break;
+    case 'ArrowRight': if(state.plan){ state.time=Math.min(state.plan.duration,state.time+step);
+      setPlaying(false); updateClock(); } break;
+    case ',': if(state.detail){ state.selected=Math.max(0,state.selected-1);
+      renderFormations(state.detail);} break;
+    case '.': if(state.detail){ state.selected=Math.min(state.detail.formations.length-1,state.selected+1);
+      renderFormations(state.detail);} break;
+    case 'v': $('btnValidate').click(); break;
+    case 'p': $('btnPrepare').click(); break;
+    case 'm': setMode(state.mode==='3d'?'2d':'3d'); break;
+    case 'l': setTab(state.tab==='preview'?'live':'preview'); break;
+    case 't': $('btnTheme').click(); break;
+    case 'k': voice.listening ? stopListening() : startListening(); break;
+  }
+});
+
+/* ------------------------------ ops ------------------------------ */
+function parseMap(text){
+  const out={};
+  (text||'').split(/[,\s]+/).filter(Boolean).forEach(pair=>{
+    const [k,v]=pair.split(':');
+    if(k!==undefined && v!==undefined) out[Number(k)]=Number(v);
+  });
+  return out;
+}
+
+$('btnLoad').onclick=async()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  const driver=$('driver').value;
+  try{
+    const wind=($('fxWind').value||'0,0,0').split(',').map(Number);
+    await api('/api/ops/load',{method:'POST',body:{
+      show:state.showName, driver, signed:$('linkSigned').checked,
+      endpoints:$('endpoints').value.split(/\s+/).filter(Boolean),
+      faults: driver.startsWith('mavlink') ? {} : {
+        wind: wind.length===3?wind:[0,0,0],
+        position_noise:Number($('fxNoise').value)||0,
+        link_loss:parseMap($('fxLink').value),
+        weak_battery:parseMap($('fxBatt').value),
+        gps_degradation:parseMap($('fxGps').value),
+        position_drift:parseMap($('fxDrift').value),
+        clock_offset:parseMap($('fxClock').value),
+      },
+    }});
+    setTab('live'); await runPreflight();
+    toast(`loaded on the ${driver} driver${$('linkSigned').checked?', link signed':''}`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnProvision').onclick=async()=>{
+  const ok=await ask({title:'Load signing key onto aircraft', confirmLabel:'Send key',
+    body:'Sends link.key to every connected aircraft and signs this link with it. '
+      +'The key travels unencrypted while this runs: do it over USB or on a closed '
+      +'bench network, never on the show radio. Aircraft must be disarmed.'});
+  if(!ok) return;
+  try{
+    const r=await api('/api/ops/signing/provision',{method:'POST'});
+    if(r.ok) toast(`signing key loaded on ${r.confirmed.length} aircraft`);
+    else toast(`${r.unconfirmed.length} aircraft did not take the key`,'warn',
+      `drones ${r.unconfirmed.slice(0,12).join(', ')} are now dropped as unsigned`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+async function runPreflight(){
+  try{
+    const r=await api('/api/ops/preflight');
+    $('checks').innerHTML=r.checks.map(c=>
+      `<div class="check"><div class="dot ${c.ok?'ok':c.blocking?'bad':'warn'}"></div>
+        <div><b>${c.name}</b><div class="mini">${c.detail}</div></div></div>`).join('');
+  }catch(e){ $('checks').innerHTML=`<span class="mini">${e.message}</span>`; }
+}
+$('btnPreflight').onclick=runPreflight;
+
+/* Steps reflect what the ground station will actually accept, so a
+   blocked step looks blocked instead of failing on click. */
+const STEP_ORDER=['validate','upload','arm','start'];
+function setSteps(phase){
+  const done={idle:0, validated:1, uploaded:2, armed:3,
+    running:4, paused:4, aborting:4, finished:4, fault:0}[phase] ?? 0;
+  STEP_ORDER.forEach((name,i)=>{
+    const el=document.querySelector(`.step[data-step=${name}]`);
+    el.dataset.state = i<done ? 'done' : i===done ? 'ready' : 'blocked';
+    el.querySelector('button').disabled = i!==done;
+  });
+  const running = phase==='running'||phase==='paused';
+  for(const id of ['btnSuspend','btnUnsuspend','btnCrth','btnHold','btnRth','btnLand'])
+    $(id).disabled = !running && phase!=='aborting';
+  $('btnUnsuspend').disabled = phase!=='paused';
+  $('btnSuspend').disabled = phase!=='running';
+}
+
+async function withErrors(fn, {retryLabel}={}){
+  try{ return await fn(); }
+  catch(e){
+    if(!retryLabel) { toast(e.message,'bad'); return; }
+    const reason=await ask({title:retryLabel, danger:true, confirmLabel:'Override',
+      input:'reason for the record',
+      body:`${e.message}\n\nTo proceed anyway, give a reason. It is written into
+the flight log against your name.`});
+    if(!reason) return;
+    try{ return await fn(reason); }catch(e2){ toast(e2.message,'bad'); }
+  }
+}
+
+$('btnOpsValidate').onclick=async()=>{
+  const r=await withErrors(()=>api('/api/ops/validate',{method:'POST'}));
+  if(r){ showReport(r);
+    toast(r.passed?'safety passed':`safety FAILED — ${r.error_count} errors`, r.passed?'ok':'bad'); }
+  await runPreflight();
+};
+/* Approval is for one exact plan: openShow re-reads it, so an edit shows
+   up as "void" straight away instead of at upload time. */
+async function refreshApproval(){
+  if(!state.showName) return;
+  try{
+    const r=await api(`/api/ops/approvals/${encodeURIComponent(state.showName)}`);
+    const a=r.approval;
+    $('approval').textContent = a
+      ? `Approved by ${a.approved_by}, ${new Date(a.ts*1000).toLocaleString()}`
+      : r.stale ? 'Approval void: the show changed after it was approved.'
+      : 'Not approved. Needed before upload to real aircraft.';
+    $('btnApprove').textContent = a ? 'Revoke' : 'Approve';
+    $('btnApprove').dataset.approved = a ? '1' : '';
+  }catch(e){ $('approval').textContent=e.message; }
+}
+$('btnApprove').onclick=async()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  const path=`/api/ops/approvals/${encodeURIComponent(state.showName)}`;
+  try{
+    if($('btnApprove').dataset.approved){
+      await api(path,{method:'DELETE'}); toast('approval revoked','warn');
+    }else{
+      const ok=await ask({title:'Approve this plan', confirmLabel:'Approve',
+        body:`You are signing off "${state.showName}" exactly as it is now for
+upload to real aircraft. Your name goes on the record. Any later edit voids it.`});
+      if(!ok) return;
+      await api(path,{method:'POST',body:{}}); toast('plan approved');
+    }
+  }catch(e){ toast(e.message,'bad'); }
+  await refreshApproval();
+};
+$('btnUpload').onclick=async()=>{
+  const r=await withErrors(reason=>api('/api/ops/upload',{method:'POST',
+    body:{override_reason:reason||null}}), {retryLabel:'Upload was refused'});
+  if(r) toast(`uploaded — ${r.checksum.slice(0,16)}`);
+  await runPreflight();
+};
+$('btnArm').onclick=async()=>{
+  const r=await withErrors(reason=>api('/api/ops/arm',{method:'POST',
+    body:{override_reason:reason||null}}), {retryLabel:'Arming was refused'});
+  if(r) toast('fleet armed','warn');
+  await runPreflight();
+};
+$('btnStart').onclick=async()=>{
+  const ok=await ask({title:'Start the show', confirmLabel:'Start', danger:true,
+    body:`The fleet will take off at the scheduled instant,
+${$('leadIn').value} s from now.`});
+  if(!ok) return;
+  try{ const r=await api('/api/ops/start',{method:'POST',body:{lead_in:Number($('leadIn').value)}});
+    setTab('live'); toast(`show starts in ${r.starts_in_s} s`,'warn');
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnSuspend').onclick=async()=>{
+  try{ await api('/api/ops/suspend',{method:'POST'}); toast('suspended — fleet holding','warn'); }
+  catch(e){ toast(e.message,'bad'); }
+};
+$('btnUnsuspend').onclick=async()=>{
+  try{ await api('/api/ops/unsuspend',{method:'POST'}); toast('resumed','ok'); }
+  catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnCrth').onclick=async()=>{
+  const ok=await ask({title:'Collective return home', danger:true, confirmLabel:'Return fleet',
+    body:`Computes ONE deconflicted return for the whole fleet from where the
+aircraft actually are, verifies it with the same continuous-time sweep as a
+designed show, and only then flies it.
+
+If no safe return exists it holds the fleet instead and tells you why.`});
+  if(!ok) return;
+  try{
+    const r=await api('/api/ops/collective-rth',{method:'POST'});
+    toast(`returning — closest approach ${r.min_separation_m} m over ${r.duration_s}s`,
+      'warn', r.detail);
+  }catch(e){
+    const p=e.payload;
+    if(p && typeof p==='object' && p.fallback){
+      toast(`return refused — fleet is holding`,'bad', p.detail);
+      showReport({passed:false, error_count:p.breaches, warning_count:0,
+        metrics:{min_separation_m:p.min_separation_m,
+          min_separation_limit_m:p.min_separation_limit_m, drones:p.drones},
+        violations:[{severity:'error', kind:'collective_rth', time:null, message:p.detail}]});
+    } else toast(e.message,'bad');
+  }
+};
+
+function emergency(action,label){
+  return async()=>{
+    const ok=await ask({title:label, danger:true, confirmLabel:action.toUpperCase(),
+      body:`This commands the whole fleet immediately.` +
+        (action==='rth' ? `\n\nPer-drone RTL is NOT deconflicted — each autopilot
+flies its own straight line home with no knowledge of the others. Prefer
+collective return unless you know why you want this.` : '')});
+    if(!ok) return;
+    try{ await api('/api/ops/emergency',{method:'POST',
+      body:{action, reason:'operator, from UI'}});
+      toast(`${action} sent to the fleet`,'warn');
+    }catch(e){ toast(e.message,'bad'); }
+  };
+}
+$('btnHold').onclick=emergency('hold','Hold position');
+$('btnRth').onclick=emergency('rth','Per-drone return to launch');
+$('btnLand').onclick=emergency('land','Land where you are');
+$('btnDisarm').onclick=emergency('disarm','Disarm the fleet');
+
+$('btnSaveLog').onclick=async()=>{
+  try{ const r=await api('/api/ops/log/save',{method:'POST'});
+    toast('flight log saved','ok',r.path); }catch(e){ toast(e.message,'bad'); }
+};
+
+/* --------------------------- live socket ------------------------- */
+const PHASE_CLASS={unloaded:'idle', idle:'idle', validated:'ok', uploaded:'ok',
+  armed:'warn', running:'warn', paused:'warn', aborting:'bad', finished:'ok', fault:'bad'};
+const kv=(k,v)=>`<div class="kv"><span>${k}</span><b>${v}</b></div>`;
+
+let gtDue=0;
+async function refreshGroundTruth(){
+  if(Date.now()<gtDue) return; gtDue=Date.now()+2000;
+  try{
+    const g=await api('/api/ops/sitl'); const box=$('groundTruth');
+    if(!g.active){ box.innerHTML=''; return; }
+    box.innerHTML=`<div style="margin-top:11px;font-size:10.5px;letter-spacing:.11em;
+      text-transform:uppercase;color:var(--dim);font-weight:600">Aircraft ground truth</div>`
+      + kv('plans loaded', `${g.plans_loaded} / ${g.count}`)
+      + kv('start scheduled', `${g.start_scheduled} / ${g.count}`)
+      + kv('origin accepted', `${g.origin_set} / ${g.count}`)
+      + kv('suspended', `${g.suspended ?? 0} / ${g.count}`)
+      + kv('modes', g.modes.join(', '))
+      + kv('telemetry sent', `${(g.tx_bytes/1024).toFixed(0)} kB`)
+      + (g.silent?.length ? kv('silent', g.silent.join(', ')) : '')
+      + (Object.keys(g.nacks||{}).length ? kv('refusals', JSON.stringify(g.nacks)) : '');
+  }catch{}
+}
+
+let sockBackoff=1000;
+function connectSocket(){
+  // Opened from the filesystem rather than served, so there is no host to
+  // talk to. Say so once instead of retrying forever against ws:///ws.
+  if(!location.host || location.protocol==='file:'){
+    $('phasePill').innerHTML='<span class="dot"></span>no server';
+    $('checks').innerHTML='<span class="mini">This page is open as a local file. '
+      + 'Run <code>python -m skyshine serve</code> and open the address it prints.</span>';
+    return;
+  }
+  const proto=location.protocol==='https:'?'wss':'ws';
+  const sock=new WebSocket(`${proto}://${location.host}/ws`);
+  sock.onopen=()=>{ sockBackoff=1000; };
+  sock.onmessage=ev=>{
+    const s=JSON.parse(ev.data);
+    const pill=$('phasePill');
+    pill.innerHTML=`<span class="dot"></span>${s.phase}`;
+    pill.className=`pill ${PHASE_CLASS[s.phase]||'idle'}` +
+      (s.phase==='running'?' live':'');
+    setSteps(s.phase);
+    if(s.phase==='unloaded'){ state.live=null; $('fleetStats').innerHTML='';
+      $('fleetPill').textContent=''; return; }
+    state.live=s; refreshGroundTruth();
+    $('fleetPill').textContent=`${s.connected}/${s.drone_count}`;
+    $('fleetStats').innerHTML=
+      kv('show time',`${s.show_time.toFixed(1)} / ${s.duration.toFixed(1)} s`)
+      + kv('connected',`${s.connected} / ${s.drone_count}`)
+      + kv('armed',`${s.armed} / ${s.drone_count}`)
+      + kv('max deviation',`${s.max_deviation.toFixed(2)} m`)
+      + kv('min battery',`${s.min_battery.toFixed(0)} %`);
+    const al=s.alerts||[];
+    $('alerts').innerHTML = al.length
+      ? al.slice(0,12).map(a=>
+          `<div class="check"><div class="dot ${a.severity==='critical'?'bad':'warn'}"></div>
+            <div><b>drone ${a.drone}</b> ${a.kind}<div class="mini">${a.detail}</div></div></div>`).join('')
+        + (al.length>12?`<div class="mini">+${al.length-12} more</div>`:'')
+      : '<div class="mini" style="color:var(--ok)">No active alerts.</div>';
+    $('droneTable').innerHTML=
+      `<tr><th>#</th><th>state</th><th>alt</th><th>dev</th><th>bat</th><th>gps</th></tr>`
+      + (s.drones||[]).map(d=>
+        `<tr><td>${d.index}</td><td>${d.connected?(d.armed?'armed':'idle'):'OFFLINE'}</td>
+         <td>${d.altitude_agl.toFixed(1)}</td><td>${d.deviation.toFixed(2)}</td>
+         <td>${d.battery_percent.toFixed(0)}</td><td>${d.gps_fix}/${d.satellites}</td></tr>`).join('');
+    if(state.tab==='live') updateClock();
+  };
+  sock.onclose=ev=>{
+    // 4401: the session expired or was revoked. Retrying cannot fix that,
+    // only signing in can - so ask, rather than reconnecting forever.
+    if(ev.code === 4401){ showLogin(); return; }
+    if(ev.code === 4403){
+      $('phasePill').innerHTML='<span class="dot"></span>refused';
+      return;
+    }
+    // Back off rather than hammering a server that is restarting; cap it
+    // so a reload during a show reconnects within a few seconds.
+    setTimeout(connectSocket, sockBackoff);
+    sockBackoff=Math.min(sockBackoff*2, 8000);
+  };
+}
+
+/* ============================ registry ============================ *
+ * The fleet as airframes rather than indices. Assigning airframes to
+ * the open show turns on the identity check at preflight: the system id
+ * answering on each slot must be the one the registry put there.
+ * ================================================================== */
+async function refreshRegistry(){
+  try{
+    const r = await api('/api/fleet/drones');
+    const s = r.summary;
+    $('regPill').textContent = s.registered ? `${s.ready}/${s.registered} ready` : '';
+    $('regSummary').innerHTML = s.registered
+      ? kv('registered', s.registered) + kv('ready', s.ready)
+        + kv('maintenance', s.maintenance) + kv('retired', s.retired)
+        + kv('fleet hours', s.total_flight_hours)
+        + kv('packs past review', s.packs_past_review)
+      : 'No airframes registered. Register a batch to start tracking them.';
+    const assigned = new Set();
+    if(state.showName){
+      try{
+        const a = await api(`/api/fleet/assign/${encodeURIComponent(state.showName)}`);
+        a.assignment.forEach(id=> id && assigned.add(id));
+        const blocking = a.problems.filter(p=>p.kind!=='advisory');
+        $('assignNote').innerHTML = !a.assignment.length
+          ? `<span style="color:var(--faint)">No airframes on this show's ${a.slots} slots.</span>`
+          : blocking.length
+            ? `<span style="color:var(--bad)">${blocking.length} problem(s): `
+              + `${blocking.slice(0,2).map(p=>p.detail).join('; ')}</span>`
+            : `<span style="color:var(--ok)">${assigned.size} airframes on `
+              + `${a.slots} slots.</span>`;
+      }catch{ $('assignNote').textContent=''; }
+    }
+    $('regTable').innerHTML =
+      '<tr><th>id</th><th>sysid</th><th>h</th><th>cyc</th><th>status</th></tr>'
+      + r.drones.map(d=>
+        `<tr class="${d.status} ${assigned.has(d.id)?'assigned':''}"
+             title="${(d.warnings||[]).join('\n')}">
+          <td>${d.id}</td><td>${d.sysid||'-'}</td>
+          <td>${d.flight_hours.toFixed(2)}</td><td>${d.battery_cycles}</td>
+          <td><select class="status-sel" data-id="${d.id}">
+            ${['ready','maintenance','retired'].map(s=>
+              `<option ${s===d.status?'selected':''}>${s}</option>`).join('')}
+          </select></td></tr>`).join('');
+    $('regTable').querySelectorAll('.status-sel').forEach(sel=>{
+      sel.onchange = async ()=>{
+        let reason = '';
+        if(sel.value !== 'ready'){
+          reason = await ask({title:`Ground ${sel.dataset.id}`, input:'cracked arm',
+            body:'Why? Recorded in its maintenance history. A grounded airframe '
+              + 'is removed from any show slot it holds.', confirmLabel:'Ground it'}) || '';
+          if(!reason){ refreshRegistry(); return; }
+        }
+        try{ await api(`/api/fleet/drones/${encodeURIComponent(sel.dataset.id)}`,
+          {method:'PATCH', body:{status: sel.value, reason}});
+          toast(`${sel.dataset.id} → ${sel.value}`); }
+        catch(e){ toast(e.message,'bad'); }
+        refreshRegistry();
+      };
+    });
+  }catch{}
+}
+
+$('btnRegBulk').onclick = async ()=>{
+  try{
+    const r = await api('/api/fleet/drones/bulk', {method:'POST', body:{
+      count:Number($('regCount').value), prefix:$('regPrefix').value||'DD',
+      model:$('regModel').value, sysid_from:Number($('regSysid').value)||0 }});
+    toast(`registered ${r.registered.length} airframes`, 'ok',
+      `${r.registered[0]} … ${r.registered.at(-1)}`);
+  }catch(e){ toast(e.message,'bad'); }
+  refreshRegistry();
+};
+$('btnRegRefresh').onclick = refreshRegistry;
+$('btnRegExport').onclick = ()=>{ location.href='/api/fleet/export'; };
+$('btnRegImport').onclick = ()=>$('regFile').click();
+$('regFile').onchange = async e=>{
+  const file=e.target.files[0]; e.target.value='';
+  if(!file) return;
+  try{
+    const r=await api('/api/fleet/import',{method:'POST',body:{csv:await file.text()}});
+    await refreshRegistry();
+    toast(`imported — ${r.added.length} added, ${r.updated.length} updated`);
+  }catch(err){ toast('Import refused','bad',err.message); }
+};
+$('btnAssign').onclick = async ()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  try{
+    const r = await api(`/api/fleet/assign/${encodeURIComponent(state.showName)}`,
+      {method:'POST', body:{auto:true}});
+    toast(`assigned ${r.assignment.filter(Boolean).length} airframes, `
+      + 'lowest flight hours first', 'ok');
+  }catch(e){ toast('Assignment refused','bad', e.message); }
+  refreshRegistry();
+};
+
+$('btnFinish').onclick = async ()=>{
+  try{
+    const r = await api('/api/ops/finish', {method:'POST'});
+    toast(`credited ${r.airframes_credited} airframes with ${r.seconds}s`,
+      'ok', r.flight_log);
+    refreshRegistry();
+  }catch(e){ toast(e.message,'bad'); }
+};
+$('btnPostShow').onclick = ()=> window.open('/api/ops/report', '_blank');
+
+/* ============================= artwork ============================ *
+ * Thresholding a logo is the step nobody can guess from the filename,
+ * so the preview shows the mask AND the drone positions that would be
+ * sampled from it, at the real drone count. A logo that thresholds
+ * beautifully can still read as noise once it is only 120 points.
+ * ================================================================== */
+const art = { assetId:null, capacity:0, debounce:null };
+
+async function refreshAssets(){
+  try{
+    const { assets } = await api('/api/design/assets');
+    const box = $('assetList');
+    box.innerHTML = assets.map(a=>
+      `<span class="asset" data-id="${a.id}" aria-selected="${a.id===art.assetId}">
+         <b title="${a.name}">${a.name}</b>
+         <span class="mini">${a.width}&times;${a.height}</span>
+         <span class="x" data-del="${a.id}">&times;</span>
+       </span>`).join('') || '<span class="mini">No artwork uploaded yet.</span>';
+    box.querySelectorAll('.asset').forEach(el=>{
+      el.onclick = async ev=>{
+        const del = ev.target.dataset.del;
+        if(del){
+          ev.stopPropagation();
+          await api(`/api/design/assets/${del}`, {method:'DELETE'});
+          if(art.assetId===del){ art.assetId=null; $('artworkBox').style.display='none'; }
+          return refreshAssets();
+        }
+        selectAsset(el.dataset.id);
+      };
+    });
+  }catch(e){ /* server not up yet */ }
+}
+
+async function selectAsset(id, suggested){
+  art.assetId = id;
+  $('artworkBox').style.display = 'block';
+  if(suggested){
+    $('thr').value = suggested.suggested_threshold;
+    $('thrInvert').checked = !!suggested.suggested_invert;
+  }
+  await refreshAssets();
+  updateMask();
+}
+
+function updateMask(){
+  if(!art.assetId) return;
+  const thr = Number($('thr').value), inv = $('thrInvert').checked;
+  const n = state.detail?.drone_count || 100;
+  $('thrVal').textContent = thr;
+  $('maskPreview').src =
+    `/api/design/assets/${art.assetId}/preview?drones=${n}&threshold=${thr}&invert=${inv}`;
+  clearTimeout(art.debounce);
+  art.debounce = setTimeout(async ()=>{
+    try{
+      const r = await api(
+        `/api/design/assets/${art.assetId}/capacity?threshold=${thr}&invert=${inv}`);
+      art.capacity = r.max_drones;
+      const ok = r.max_drones >= n;
+      $('maskNote').innerHTML = ok
+        ? `<span style="color:var(--ok)">${r.max_drones.toLocaleString()} usable pixels `
+          + `for ${n} drones.</span>`
+        : `<span style="color:var(--bad)">Only ${r.max_drones.toLocaleString()} usable `
+          + `pixels for ${n} drones — lower the threshold, invert it, or use a `
+          + `higher-resolution image.</span>`;
+    }catch{}
+  }, 220);
+}
+
+$('thr').oninput = updateMask;
+$('thrInvert').onchange = updateMask;
+$('drop').onclick = ()=> $('assetFile').click();
+['dragenter','dragover'].forEach(e=> $('drop').addEventListener(e, ev=>{
+  ev.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave','drop'].forEach(e=> $('drop').addEventListener(e, ev=>{
+  ev.preventDefault(); $('drop').classList.remove('over'); }));
+$('drop').addEventListener('drop', ev=>{
+  const f = ev.dataTransfer?.files?.[0];
+  if(f) uploadAsset(f);
+});
+$('assetFile').onchange = e=>{ if(e.target.files[0]) uploadAsset(e.target.files[0]); };
+
+async function uploadAsset(file){
+  const form = new FormData();
+  form.append('file', file);
+  try{
+    const res = await fetch('/api/design/assets', {method:'POST', body:form});
+    const data = await res.json();
+    if(!res.ok) throw new Error(
+      typeof data.detail==='string' ? data.detail : JSON.stringify(data.detail));
+    $('artName').value = (data.name||'logo').replace(/\.[^.]+$/, '');
+    await selectAsset(data.id, data);
+    toast(`uploaded ${data.name} (${data.width}\u00d7${data.height})`, 'ok',
+      `threshold ${data.suggested_threshold}`
+      + (data.suggested_invert ? ', inverted' : '')
+      + `, ${data.max_drones.toLocaleString()} usable pixels`);
+  }catch(e){ toast('Upload refused', 'bad', e.message); }
+}
+
+$('btnArtwork').onclick = async ()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  const text = $('artText').value.trim();
+  if(!art.assetId && !text) return toast('upload a logo or type some text','warn');
+  if(art.assetId && text)
+    return toast('one at a time','warn','Clear the text box to use the logo.');
+  try{
+    const r = await api(`/api/design/shows/${encodeURIComponent(state.showName)}/artwork`,
+      {method:'POST', body:{
+        name: $('artName').value || (text ? text.slice(0,20) : 'logo'),
+        asset_id: art.assetId || null,
+        text: text || null,
+        threshold: Number($('thr').value),
+        invert: $('thrInvert').checked,
+        width: Number($('artWidth').value),
+        altitude: Number($('artAlt').value),
+        hold: Number($('artHold').value),
+        color: hexToRgb($('artColor').value),
+      }});
+    await openShow(state.showName);
+    if(r.warning) toast('added — but it will not fit','warn',r.warning);
+    else toast(`added — raw spacing ${r.raw_min_separation_m} m, `
+      + `extent ${r.extent_m.join(' \u00d7 ')} m`, 'ok', r.note);
+  }catch(e){ toast(e.message, 'bad'); }
+};
+
+/* ============================== voice ============================= *
+ * Recognition and speech are the browser's own (Web Speech API): no
+ * key, no cloud round trip, and nothing leaves the machine except the
+ * recognised text. Understanding happens server-side against a
+ * deterministic grammar - see skyshine/voice.py for why that is not a
+ * language model.
+ * ================================================================== */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const voice = { rec:null, listening:false, muted:false, lastShow:null, mode:'off' };
+// Spoken switches. Checked in the browser, so in standby nothing but the
+// wake phrase ever reaches the server.
+const WAKE = /\b(sky ?shine|skyshine)\b.*\b(wake ?up|listen|activate|start)\b|\bactivate voice\b|\bwake up sky ?shine\b/;
+const SLEEP = /\b(go to sleep|stop listening|stand ?by|sleep now|pause listening)\b/;
+const OFF = /\b(voice off|turn off (the )?voice|switch off (the )?voice|stop voice)\b/;
+
+function speak(text){
+  if(!text || voice.muted || !window.speechSynthesis) return;
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05; u.pitch = 1.0;
+    speechSynthesis.speak(u);
+  }catch{}
+}
+
+function strip(lines){
+  const box = $('voiceStrip');
+  if(!lines.length){ box.classList.remove('on'); box.innerHTML=''; return; }
+  box.classList.add('on');
+  box.innerHTML = lines.map(l=>`<div class="vline ${l.kind}">${l.text}</div>`).join('');
+}
+
+function micState(s){
+  $('mic').dataset.state = s;
+  $('voiceState').textContent = s;
+  $('btnMic2').textContent = voice.mode==='active' ? 'Stop listening' : 'Start listening';
+  $('btnStandby').textContent = voice.mode==='standby' ? 'Voice off' : 'Standby';
+}
+function setVoiceMode(mode){
+  voice.mode = mode;
+  micState(mode==='active' ? 'listening' : mode==='standby' ? 'standby' : 'idle');
+}
+// One place decides what a finished phrase means in the current mode.
+function heardPhrase(text){
+  const t = text.toLowerCase();
+  if(OFF.test(t)){ stopListening(); speak('Voice off.'); return; }
+  if(voice.mode==='standby'){
+    if(WAKE.test(t)){ setVoiceMode('active'); speak('Listening.');
+      strip([{kind:'said', text:'listening — say "go to sleep" to stand by'}]); }
+    return;
+  }
+  if(SLEEP.test(t)){ setVoiceMode('standby'); speak('Standing by. Say Sky Shine, wake up.');
+    strip([{kind:'said', text:'standing by — say "Sky Shine, wake up"'}]); return; }
+  sendVoice(text);
+}
+
+function logVoice(transcript, intent, speech){
+  const row = document.createElement('div');
+  row.className = `vrow ${intent?.risk||'auto'}`;
+  row.innerHTML = `<div class="q">"${transcript}"</div><div>${speech||''}</div>`;
+  $('voiceLog').prepend(row);
+  while($('voiceLog').children.length > 25) $('voiceLog').lastChild.remove();
+}
+
+async function sendVoice(text, confirmed=false){
+  micState('thinking');
+  strip([{kind:'heard', text:`"${text}"`}]);
+  try{
+    const r = await api('/api/voice', {method:'POST', body:{
+      text, confirmed,
+      context:{ show: state.showName, selected: state.selected },
+    }});
+    await handleVoice(r, text);
+  }catch(e){
+    speak('That failed.');
+    strip([{kind:'heard',text:`"${text}"`},{kind:'refused',text:e.message}]);
+    logVoice(text, null, e.message);
+  }finally{
+    micState(voice.mode==='active' ? 'listening' : voice.mode==='standby' ? 'standby' : 'idle');
+    setTimeout(()=>{ if(!voice.listening) strip([]); }, 5200);
+  }
+}
+
+async function handleVoice(r, transcript){
+  const intent = r.intent;
+  const speech = r.speech || '';
+
+  if(r.refused){
+    strip([{kind:'heard',text:`"${transcript}"`},{kind:'refused',text:speech}]);
+    speak(speech); logVoice(transcript, intent, speech);
+    toast('Refused by voice', 'bad', speech);
+    return;
+  }
+
+  if(r.needs_confirmation){
+    speak(speech);
+    logVoice(transcript, intent, speech);
+    strip([{kind:'heard',text:`"${transcript}"`},{kind:'said',text:speech}]);
+    const ok = await ask({title:'Confirm by hand', danger:true,
+      confirmLabel:'Do it', body:r.confirm_prompt || speech});
+    if(ok) await sendVoice(r.confirm_text || transcript, true);
+    return;
+  }
+
+  strip([{kind:'heard',text:`"${transcript}"`},{kind:'said',text:speech}]);
+  speak(speech);
+  logVoice(transcript, intent, speech);
+
+  if(r.client_action) applyClientAction(r.client_action);
+  if(r.report) showReport(r.report);
+  if(r.open_show){ await openShow(r.open_show); await refreshLibrary(); }
+  else if(r.reload && state.showName){ await openShow(state.showName); }
+  if(r.error) toast('Command failed', 'bad', r.error);
+}
+
+function applyClientAction(a){
+  switch(a.name){
+    case 'play': setPlaying(true); break;
+    case 'pause': setPlaying(false); break;
+    case 'seek':
+      if(state.plan){ state.time = clamp(a.seconds||0, 0, state.plan.duration);
+        setPlaying(false); updateClock(); }
+      break;
+    case 'camera':
+      if(a.view==='map') setMode('2d');
+      else { setMode('3d'); ({top:$('btnTop'), crowd:$('btnFront'), iso:$('btnIso')}
+        [a.view] || $('btnIso')).click(); }
+      break;
+    case 'next_formation':
+      if(state.detail){ state.selected=Math.min(state.detail.formations.length-1,
+        state.selected+1); renderFormations(state.detail); } break;
+    case 'previous_formation':
+      if(state.detail){ state.selected=Math.max(0,state.selected-1);
+        renderFormations(state.detail); } break;
+    case 'open_report': $('btnReport').click(); break;
+    case 'compose': $('aiDesc').value = a.description || ''; $('btnCompose').click(); break;
+  }
+}
+
+function startListening(mode='active'){
+  if(voice.listening){ setVoiceMode(mode); return; }
+  if(!SR){ toast('This browser has no speech recognition', 'warn',
+    'Chrome and Edge support it. The text box and buttons still work.'); return; }
+  const rec = new SR();
+  rec.lang = 'en-US'; rec.continuous = true; rec.interimResults = true;
+  rec.onstart = ()=>{ voice.listening=true; setVoiceMode(mode);
+    strip([{kind:'heard', text: mode==='active' ? 'listening…' : 'standing by — say "Sky Shine, wake up"'}]); };
+  rec.onresult = ev=>{
+    let interim='', final='';
+    for(let i=ev.resultIndex; i<ev.results.length; i++){
+      const txt = ev.results[i][0].transcript;
+      if(ev.results[i].isFinal) final += txt; else interim += txt;
+    }
+    if(interim && voice.mode==='active') strip([{kind:'heard', text:interim}]);
+    if(final.trim()) heardPhrase(final.trim());
+  };
+  rec.onerror = ev=>{
+    if(ev.error==='not-allowed' || ev.error==='service-not-allowed'){
+      stopListening();
+      toast('Microphone blocked','bad','Allow microphone access for this page, then try again.');
+    }
+  };
+  rec.onend = ()=>{ if(voice.listening){ try{ rec.start(); }catch{} } };
+  voice.rec = rec;
+  try{ rec.start(); }catch{ toast('Could not start the microphone','bad'); }
+}
+
+function stopListening(){
+  voice.listening = false;
+  try{ voice.rec && voice.rec.stop(); }catch{}
+  setVoiceMode('off'); strip([]);
+}
+
+$('mic').onclick = ()=> voice.mode==='active' ? stopListening() : startListening('active');
+$('btnMic2').onclick = ()=> voice.mode==='active' ? stopListening() : startListening('active');
+$('btnStandby').onclick = ()=> voice.mode==='standby' ? stopListening() : startListening('standby');
+
+// Typing reaches the same grammar as speaking. Without this, a blocked
+// microphone or a browser without recognition leaves no way in at all.
+$('voiceText').addEventListener('keydown', e=>{
+  if(e.key !== 'Enter') return;
+  const text = e.target.value.trim();
+  if(!text) return;
+  e.target.value = '';
+  sendVoice(text);
+});
+
+/* AI helpers. Each one is an ordinary design edit: undo puts it back,
+   and nothing flies until prepare and the safety check pass. */
+const aiUrl = p => `/api/design/shows/${encodeURIComponent(state.showName)}/ai/${p}`;
+$('btnAiFix').onclick = async ()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  try{
+    const r = await api(aiUrl('fix'), {method:'POST'});
+    await openShow(state.showName);
+    const body = (r.changes.length ? r.changes.join('\n') : 'Nothing to change.')
+      + `\n\n${r.summary}`;
+    toast(r.passed ? 'fixed — all checks pass' : 'fixed what it could',
+      r.passed ? 'ok' : 'warn', body);
+  }catch(e){ toast(e.message,'bad'); }
+};
+$('btnAiMusic').onclick = async ()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  try{
+    const r = await api(aiUrl('music'), {method:'POST', body:{beats:Number($('aiBeats').value)}});
+    await openShow(state.showName);
+    toast('matched to the music','ok', r.notes.join('\n'));
+  }catch(e){ toast(e.message,'bad'); }
+};
+$('btnAiShape').onclick = async ()=>{
+  if(!state.showName) return toast('open a show first','warn');
+  const description = $('aiShape').value.trim();
+  if(!description) return toast('say what to draw','warn');
+  $('btnAiShape').disabled = true;
+  try{
+    const r = await api(aiUrl('shape'), {method:'POST',
+      body:{description, color:hexToRgb($('aiShapeColor').value)}});
+    await openShow(state.showName);
+    if(r.warning) toast(`added (${r.source}) — but it will not fit`,'warn',r.warning);
+    else toast(`added — ${r.source}`, r.note ? 'warn' : 'ok', r.note || undefined);
+  }catch(e){ toast(e.message,'bad'); }
+  finally{ $('btnAiShape').disabled = false; }
+};
+function aiShowStatus(s){
+  $('aiStatus').textContent = s.claude
+    ? `Claude is on (${s.model}, key ${s.key_source==='saved' ? 'saved in the app' : 'from the server'}): `
+      + 'it drafts shows, draws shapes and understands free-form commands.'
+    : 'Claude is off: paste a key below. Fix and music work anyway; shapes fall back to text.';
+  $('btnAiKeyDel').style.display = s.key_source==='saved' ? '' : 'none';
+}
+api('/api/ai/status').then(aiShowStatus).catch(()=>{});
+$('btnAiKey').onclick = async ()=>{
+  const key = $('aiKey').value.trim();
+  if(!key) return toast('paste your Claude key first','warn');
+  try{ aiShowStatus(await api('/api/ai/key', {method:'POST', body:{key}}));
+    $('aiKey').value=''; toast('Claude key saved on this computer'); }
+  catch(e){ toast(e.message,'bad'); }
+};
+// localhost:8765/#claude-key jumps straight to the box.
+function gotoClaudeKey(){
+  if(location.hash !== '#claude-key') return;
+  showMenu('ai');
+  const k = $('aiKey');
+  k.focus();
+  k.scrollIntoView({block:'center'});
+  k.animate([{boxShadow:'0 0 0 4px var(--accent)'},{boxShadow:'0 0 0 0 transparent'}],
+    {duration:1200, iterations:3});
+}
+window.addEventListener('hashchange', gotoClaudeKey);
+document.querySelector('a[href="#claude-key"]').onclick = e=>{
+  e.preventDefault(); history.replaceState(null, '', '#claude-key'); gotoClaudeKey(); };
+setTimeout(gotoClaudeKey, 300);
+$('btnAiKeyDel').onclick = async ()=>{
+  try{ aiShowStatus(await api('/api/ai/key', {method:'DELETE'})); toast('Claude key removed'); }
+  catch(e){ toast(e.message,'bad'); }
+};
+
+$('btnCompose').onclick = async ()=>{
+  const description = $('aiDesc').value.trim();
+  if(!description) return toast('Describe the show first','warn');
+  try{
+    const draft = await api('/api/voice/compose', {method:'POST',
+      body:{description, drone_count:Number($('aiCount').value)||100, create:false}});
+    const s = draft.spec;
+    const summary = s.formations
+      .map((f,i)=>`${i+1}. ${f.name} — ${f.shape}, ${f.effect}, ${f.altitude}m, `
+        + `${f.transition}s in / ${f.hold}s hold`).join('\n');
+    const ok = await ask({title:`Draft: ${s.mood} (${s.source})`, confirmLabel:'Build it',
+      body: summary + (s.corrections?.length
+        ? `\n\nAdjusted to fit the generators:\n  ${s.corrections.join('\n  ')}` : '')
+        + `\n\n${s.note}`});
+    if(!ok) return;
+    const built = await api('/api/voice/compose', {method:'POST',
+      body:{description, drone_count:Number($('aiCount').value)||100, create:true}});
+    await refreshLibrary(); await openShow(built.created);
+    toast(`built "${built.created}" — ${built.formations.length} formations`,
+      'ok', built.note);
+    speak(`Drafted ${built.formations.length} formations. Prepare and validate before flying.`);
+  }catch(e){ toast(e.message,'bad'); }
+};
+
+(async ()=>{
+  try{
+    const v = await api('/api/voice/vocabulary');
+    $('voiceChips').innerHTML = v.examples.slice(0,8)
+      .map(e=>`<span class="chip">${e}</span>`).join('');
+    $('voiceChips').querySelectorAll('.chip').forEach(c=>{
+      c.onclick = ()=> sendVoice(c.textContent);
+    });
+  }catch{}
+  if(!SR){ micState('off'); $('mic').title = 'Speech recognition unavailable in this browser';
+    $('btnMic2').disabled = true; $('btnStandby').disabled = true;
+    $('voiceState').textContent = 'unavailable'; }
+})();
+
+/* ============================== auth ============================== *
+ * The session lives in an HttpOnly cookie, so script on this page can
+ * never read the token - and the cookie rides along on every fetch, the
+ * WebSocket upgrade, the mask preview images and the report tabs without
+ * any of them handling it.
+ * ================================================================== */
+let booted = false;
+
+function showLogin(message){
+  $('loginErr').textContent = message || '';
+  $('login').style.display = 'grid';
+  setTimeout(()=> $('loginUser').focus(), 30);
+}
+
+function setIdentity(user, role, configured){
+  const badge = $('who');
+  if(!configured){
+    badge.textContent = 'local, no accounts';
+    badge.title = 'No user accounts exist, so only this machine can connect. '
+      + 'Create an admin with: python -m skyshine user add <name> --role admin';
+    $('btnLogout').style.display = 'none';
+  } else {
+    badge.textContent = `${user} · ${role}`;
+    badge.title = `signed in as ${user} (${role})`;
+    $('btnLogout').style.display = '';
+  }
+  document.body.dataset.role = role || '';
+}
+
+async function boot(){
+  if(booted) return;
+  booted = true;
+  refreshAssets();
+  refreshRegistry();
+  setSteps('unloaded');
+  connectSocket();
+  resize();
+  loadCatalogues().then(refreshLibrary).catch(e=>toast(e.message,'bad'));
+}
+
+$('loginForm').addEventListener('submit', async ev=>{
+  ev.preventDefault();
+  $('loginErr').textContent = '';
+  $('loginBtn').disabled = true;
+  try{
+    const r = await api('/api/auth/login', {method:'POST', body:{
+      username:$('loginUser').value.trim(), password:$('loginPass').value }});
+    $('loginPass').value = '';
+    $('login').style.display = 'none';
+    setIdentity(r.user, r.role, true);
+    if(booted){ connectSocket(); refreshLibrary(); refreshRegistry(); }
+    else boot();
+    toast(`signed in as ${r.user} (${r.role})`);
+  }catch(e){
+    $('loginErr').textContent = e.message;
+    $('loginPass').select();
+  }finally{ $('loginBtn').disabled = false; }
+});
+
+$('btnLogout').onclick = async ()=>{
+  try{ await api('/api/auth/logout', {method:'POST'}); }catch{}
+  showLogin('Signed out.');
+};
+
+(async ()=>{
+  try{
+    const s = await api('/api/auth/status');
+    setIdentity(s.user, s.role, s.configured);
+    if(s.configured && !s.user){ showLogin(); return; }
+    if(!s.configured && !s.local){
+      showLogin('This server has no accounts yet and only accepts its own machine.');
+      return;
+    }
+  }catch{ /* older server or offline: fall through and let calls report */ }
+  boot();
+})();
+</script>
+</body>
+</html>
